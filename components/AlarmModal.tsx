@@ -5,12 +5,27 @@ import { Alarm } from '../types';
 interface AlarmModalProps {
   alarm: Alarm | null;
   onClose: () => void;
+  labels?: {
+    alarmCode: string;
+    warningCode: string;
+    alarmInfo: string;
+    warningInfo: string;
+    acknowledge: string;
+  };
 }
 
-export const AlarmModal: React.FC<AlarmModalProps> = ({ alarm, onClose }) => {
+export const AlarmModal: React.FC<AlarmModalProps> = ({ alarm, onClose, labels }) => {
   if (!alarm) return null;
 
   const isWarning = alarm.type === 'WARNING';
+
+  const l = labels || {
+    alarmCode: 'Alarm Cod',
+    warningCode: 'Warning Cod',
+    alarmInfo: 'Alarm Information',
+    warningInfo: 'Warning Information',
+    acknowledge: 'ACKNOWLEDGE'
+  };
 
   // Styles matching Pages 14-18
   return (
@@ -44,12 +59,12 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ alarm, onClose }) => {
             {/* Content */}
             <div className="flex-1">
                 <div className="text-gray-300 font-mono text-sm mb-2">
-                    {isWarning ? 'Warning Cod:' : 'Alarm Cod:'} <span className="text-white font-bold tracking-wider">{alarm.code}</span>
+                    {isWarning ? l.warningCode : l.alarmCode}: <span className="text-white font-bold tracking-wider">{alarm.code}</span>
                 </div>
 
                 <div className="bg-white rounded p-4 min-h-[120px] shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] border-l-4 border-gray-300">
                     <h3 className={`font-bold mb-2 text-lg ${isWarning ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {isWarning ? 'Warning Information:' : 'Alarm Information:'}
+                        {isWarning ? l.warningInfo : l.alarmInfo}:
                     </h3>
                     <p className="text-black font-semibold text-sm leading-relaxed">
                         {alarm.message}
@@ -61,7 +76,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ alarm, onClose }) => {
                         onClick={onClose}
                         className="bg-gray-600 hover:bg-gray-500 text-white px-6 py-2 rounded text-sm font-bold shadow-lg transition-colors border border-gray-500"
                     >
-                        ACKNOWLEDGE
+                        {l.acknowledge}
                     </button>
                 </div>
             </div>
