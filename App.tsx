@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Home, Settings, ClipboardList, AlertCircle, HelpCircle, 
   Power, ChevronRight, Activity, Map, ArrowLeft,
   LayoutGrid, Wrench, Save, Download, Phone, Mail, MapPin, Search, X,
-  User, Database, PenTool, Layout, Globe, LogOut
+  User, Database, PenTool, Layout, Globe, LogOut,
+  ZoomIn, ZoomOut, Maximize, CheckSquare
 } from 'lucide-react';
 import { Gauge } from './components/Gauge';
 import { AlarmModal } from './components/AlarmModal';
 import { ViewState, Alarm, EquipmentData, SystemParameters, MaintenanceEntry } from './types';
 
 // --- Constants & Assets ---
-const IMG_SHIP_BANNER = "https://images.unsplash.com/photo-1551754659-02cb904b2bf5?auto=format&fit=crop&w=1000&q=80";
-
 const DATE_OPTIONS: Intl.DateTimeFormatOptions = { weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
 
 const TRANSLATIONS = {
@@ -46,7 +45,7 @@ const TRANSLATIONS = {
     workRadius: 'Work Radius',
     alarmActive: 'ALARM ACTIVE',
     // Remote
-    clear: 'Clear',
+    clear: 'CLEAR',
     estop: 'E-STOP!',
     weight: 'WEIGHT',
     length: 'LENGTH',
@@ -61,6 +60,9 @@ const TRANSLATIONS = {
     top: 'TOP',
     side: 'SIDE',
     exit: 'Exit',
+    zoomIn: 'Zoom In',
+    zoomOut: 'Zoom Out',
+    zoomReset: 'Reset',
     // Params
     paramSelector: 'Parameter Setting Selector',
     back: 'Back',
@@ -106,6 +108,19 @@ const TRANSLATIONS = {
     equipmentList: 'Equipment List',
     crane5T: '5T Knuckle Jib Crane',
     crane15T: '15T Telescopic Boom Crane',
+	MAIN_VIEW: "SIDE VIEW",
+        TOP_VIEW: "TOP VIEW",
+        ALERT: "ALERT",
+        MAIN_ANGLE: "MAIN ∠",
+        KNUCKLE_ANGLE: "KNUCKLE ∠",
+        RADIUS: "RADIUS",
+        SPEED: "SPEED",
+        SLEW_ANGLE: "SLEW ∠",
+        METERS: "m",
+        DEGREES: "°",
+        TONS: "T",
+        MPS: "m/s",
+	
     // Specific Alarm Messages
     alarms: {
         'MSTP 001': 'Emergency Stop Button of Main Pump Motor Control Cabinet Pressed, Reset After Fault Resolution.',
@@ -166,6 +181,9 @@ const TRANSLATIONS = {
     top: '顶部',
     side: '侧面',
     exit: '退出',
+    zoomIn: '放大',
+    zoomOut: '缩小',
+    zoomReset: '重置',
     // Params
     paramSelector: '参数设置选择',
     back: '返回',
@@ -211,6 +229,17 @@ const TRANSLATIONS = {
     equipmentList: '设备列表',
     crane5T: '5T 折臂吊',
     crane15T: '15T 伸缩臂吊',
+	MAIN_ANGLE: "主臂 ∠",
+    KNUCKLE_ANGLE: "折臂 ∠",
+    RADIUS: "半径",
+    SPEED: "速度",
+	SLEW_ANGLE: "回转 ∠",
+    METERS: "m",
+    DEGREES: "°",
+    TONS: "T",
+    MPS: "m/s",
+	MAIN_VIEW: "侧视图",
+    TOP_VIEW: "俯视图",
     // Specific Alarm Messages
     alarms: {
         'MSTP 001': '主泵电机控制柜急停按钮被按下，故障排除后复位。',
@@ -239,104 +268,319 @@ const INITIAL_RECORDS: MaintenanceEntry[] = [
 
 // --- Visual Components ---
 
-// 1. Redesigned Code-based Logo matching KTS brand
-const KTSLogo = () => (
+function KTSLogo({ color = "text-[#003366]" }: { color?: string }) {
+  return (
   <div className="flex flex-col select-none cursor-pointer hover:opacity-90 transition-opacity">
     <div className="flex items-center h-7 gap-1">
-       {/* Orange Shape: Skewed Box */}
-       <div className="h-full w-4 bg-[#e65100] transform -skew-x-[20deg] shadow-sm border border-[#bf360c]"></div>
-       {/* Blue Shape: Skewed Box container for KTS */}
-       <div className="h-full bg-[#003366] transform -skew-x-[20deg] px-3 flex items-center justify-center shadow-sm min-w-[60px] border border-[#001f3f]">
-          <span className="text-white font-black italic text-lg transform skew-x-[20deg] leading-none pt-0.5 drop-shadow-md" style={{ fontFamily: 'Arial, sans-serif' }}>KTS</span>
+       <div className="h-5 w-2 bg-[#e65100] transform -skew-x-[17deg] shadow-sm border relative z-10 border-[#bf360c] translate-y-0.5"></div>
+       <div className="h-full bg-[#003366] transform -skew-x-[20deg] pl-0 pr-1 flex items-center justify-start shadow-sm min-w-[60px] border border-[#001f3f]">
+          <span className="text-white font-black italic text-2xl transform skew-x-[17deg] leading-tight pt-0.5 drop-shadow-md relative -left-3.5" style={{ fontFamily: 'Arial, sans-serif' }}>KTS</span>
        </div>
     </div>
-    {/* Bottom Text */}
-    <div className="text-[#003366] font-bold italic text-[10px] tracking-[0.4em] pl-5 leading-none mt-0.5 scale-x-110 origin-left" style={{ fontFamily: 'Arial, sans-serif' }}>
+    <div className={`${color} font-bold italic text-[10px] tracking-[0.4em] pl-5 leading-none mt-0.5 scale-x-110 origin-left`} style={{ fontFamily: 'Arial, sans-serif' }}>
       ENERGY
     </div>
   </div>
-);
+  );
+}
 
-// 2. Code-based Crane Visualization
-const CraneVisual = ({ angle, ropeLength, activeAlarm }: { angle: number, ropeLength: number, activeAlarm: boolean }) => {
-    // Simple trigonometry for visualization
-    const rad = (angle * Math.PI) / 180;
-    const armLength = 180;
-    const startX = 40;
-    const startY = 130;
-    const endX = startX + armLength * Math.cos(rad);
-    const endY = startY - armLength * Math.sin(rad);
+const IMAGE_PATHS = {
+        MAIN_BOOM: '/assets/main_boom_side.png',
+        KNUCKLE_BOOM: '/assets/knuckle_boom_side.png',
+        PEDESTAL_BASE: '/assets/pedestal_base_side.png',
+        TOP_VIEW_CRANE: '/assets/crane_top_view.png',
+    };
+
+function CraneVisual({ 
+    angle, 
+    ropeLength, 
+    activeAlarm, 
+    knuckleAngle = 0, 
+    slewAngle = 0, 
+    viewMode = 'SIDE',
+    weight = 0, 
+    speed = 0,
+    zoom = 1,
+    // 💡 1. 接收来自 RemoteControlView 的映射后角度
+    displayKnuckleAngle 
+}: { 
+    angle: number, 
+    ropeLength: number, 
+    activeAlarm: boolean, 
+    knuckleAngle?: number, 
+    slewAngle?: number,
+    viewMode?: 'SIDE' | 'TOP',
+    weight?: number,
+    speed?: number,
+    zoom?: number,
+    // 💡 2. 添加 displayKnuckleAngle 的类型定义
+    displayKnuckleAngle?: number 
+}) {
+    // --- 调试开关：设置为 true 会显示红点、绿点、蓝点，用于校准 ---
+    const DEBUG_MODE = false; 
+
+    // Calculate ViewBox based on zoom
+    const vbW = 300 / zoom;
+    const vbH = 200 / zoom;
+    const vbX = (300 - vbW) / 2;
+    const vbY = (200 - vbH) / 2;
+    const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
+
+    // 💡 3. 定义最终用于显示的角度值
+    const angleToDisplay = displayKnuckleAngle !== undefined 
+        ? displayKnuckleAngle 
+        : knuckleAngle;
+
+    // ==================================================================================
+    // --- TOP VIEW 逻辑 (已添加旋转) ---
+    // ==================================================================================
+    if (viewMode === 'TOP') {
+        // 假设 TOP 视图的旋转中心位于 SVG 视图的中央 (150, 100)
+        const topPivotX = 150;
+        const topPivotY = 100;
+        // 假设 TOP 视图图片尺寸为 300x200 (与 SVG 视图一致，便于居中)
+        const topImgWidth = 300; 
+        const topImgHeight = 200; 
+        // ====== 新增魔法参数：图片偏移量 ======
+        const imageOffsetX = 120; // 正值：图片向右移动。负值：图片向左移动。
+        const imageOffsetY = -5;  // 正值：图片向下移动。负值：图片向上移动。
+        return (
+             <div className="w-full h-full bg-slate-900 relative overflow-hidden border border-slate-600 rounded">
+                 <div className="absolute top-2 right-2 text-white text-xs font-bold drop-shadow opacity-50">TOP VIEW</div>
+                 <svg width="100%" height="100%" viewBox={viewBox} className="transition-all duration-300 ease-out">
+                     <rect x="-1000" y="-1000" width="4000" height="4000" fill="#0f172a" />
+                     
+                     {/* Top View Crane Image with Slew Rotation */}
+                     <g transform={`translate(${topPivotX}, ${topPivotY}) rotate(${slewAngle})`}>
+                         <image 
+                             href={IMAGE_PATHS.TOP_VIEW_CRANE} // 假设 IMAGE_PATHS 已定义
+                             x={-topImgWidth / 2 + imageOffsetX} 
+                             y={-topImgHeight / 2 + imageOffsetY}
+                             width={topImgWidth} 
+                             height={topImgHeight} 
+                         />
+                     </g>
+                     
+                     {/* 调试模式下的旋转中心点 */}
+                     {DEBUG_MODE && (
+                         <circle cx={topPivotX} cy={topPivotY} r={3} fill="yellow" stroke="white" strokeWidth={0.5}/>
+                     )}
+                 </svg>
+             </div>
+        );
+    }
+
+    // ==================================================================================
+    // --- 侧视图：魔法参数区 (您的校准参数保持不变) ---
+    // ==================================================================================
+
+    // 【魔法参数 A】：控制红点 (Main Pivot) 的世界坐标。
+    const pivotWorldX = 60;    
+    const pivotWorldY = 103;   
+
+    // 【魔法参数 B】：绿点的高度补偿 (修正主臂图片固有倾斜)。
+    const mainBoomMathOffsetAngle = 1; 
+
+    // 【魔法参数 C】：主臂的"视觉长度" (红点到绿点的距离)。
+    const visualMainBoomLength = 182; 
     
-    // Rope
-    const ropeDrop = 20 + (ropeLength * 10); // Scaling rope length for visual
+    // **********************************************
+    // --- 新增蓝点校准参数 (您的校准值保持不变) ---
+    // **********************************************
+    
+    // 【魔法参数 D】：折臂的"视觉长度" (绿点到蓝点的距离)。
+    const visualKnuckleBoomLength = -130; 
+
+    // 【魔法参数 E】：蓝点的高度补偿 (修正折臂图片固有倾斜)。
+    const knuckleBoomMathOffsetAngle = 55; 
+
+    // --- 原始图片定位参数 (保持不变，用于绘制图片) ---
+    const mbImgOffsetX = 60; const mbImgOffsetY = 217; 
+    const kbImgOffsetX = 233; const kbImgOffsetY = 150; 
+    const initialBoomOffsetAngle = 20; 
+    const initialKnuckleOffsetAngle = 92;
+
+    // --- 运动学计算 (Kinematics) ---
+
+    // 1. 主臂角度计算
+    const radMain = ((angle + mainBoomMathOffsetAngle) * Math.PI) / 180;
+    
+    // 2. 计算点2 (Joint - 绿点) 的位置
+    const jointX = pivotWorldX + visualMainBoomLength * Math.cos(radMain);
+    const jointY = pivotWorldY - visualMainBoomLength * Math.sin(radMain);
+
+    // 3. 折臂角度和尖端 (Tip - 蓝点) 计算
+    // 注意：这里仍然使用原始的 knuckleAngle (动画值)
+    const radKnuckle = ((angle - knuckleAngle + mainBoomMathOffsetAngle + knuckleBoomMathOffsetAngle) * Math.PI) / 180;
+    
+    // 使用新的可调长度 D
+    const tipX = jointX + visualKnuckleBoomLength * Math.cos(radKnuckle);
+    const tipY = jointY - visualKnuckleBoomLength * Math.sin(radKnuckle);
+
+    // 统一液压缸使用的折臂长度
+    const knuckleBoomLen = visualKnuckleBoomLength; 
+
+    // --- 液压缸和辅助组件 (保持不变) ---
+    const pivotX = 60; const pivotY = 90; 
+    const groundY = 170; 
+    const rot = (len: number, r: number) => ({ x: len * Math.cos(r), y: -len * Math.sin(r) });
+    const getPointOnBoom = (originX: number, originY: number, rad: number, dist: number, offset: number) => {
+             const cos = Math.cos(rad); const sin = Math.sin(rad);
+             return { x: originX + dist * cos + offset * Math.sin(rad), y: originY - dist * sin + offset * Math.cos(rad) };
+    }
+    const mcBase = { x: pivotX + 10, y: pivotY + 43 }; 
+    const mcAttach = getPointOnBoom(pivotWorldX, pivotWorldY, radMain, 64, 10);
+    const kcBase = getPointOnBoom(pivotWorldX, pivotWorldY, radMain, 106, 10);
+    // kcAttach 使用 radKnuckle
+    const kcAttach = getPointOnBoom(jointX, jointY, radKnuckle, -22, 6); 
+    const ropeDrop = 10 + (ropeLength * 8); // 保持您的修改
+
+    const Cylinder = ({ start, end, thickness = 8, isBlack = true, fixedLen }: any) => {
+         const dx = end.x - start.x; const dy = end.y - start.y;
+         const len = Math.sqrt(dx*dx + dy*dy);
+         const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+         const barrelL = fixedLen || (len * 0.6);
+         return (
+             <g transform={`translate(${start.x}, ${start.y}) rotate(${angleDeg})`}>
+                 <rect x={barrelL - 4} y={-thickness/2 + 2} width={Math.max(0, len - barrelL + 4)} height={thickness - 4} fill="#e2e8f0" stroke="#94a3b8" />
+                 <rect x={0} y={-thickness/2} width={barrelL} height={thickness} rx={1} fill={isBlack ? "#1a1a1a" : "#cbd5e1"} stroke={isBlack ? "black" : "#64748b"} />
+                 <circle cx={0} cy={0} r={thickness/2} fill="#334155" />
+                 <circle cx={len} cy={0} r={thickness/2} fill="#334155" />
+             </g>
+         )
+    }
+    
+    // 图片尺寸配置 (保持你原来的)
+    const mbImgWidth = 400; const mbImgHeight = 400;
+    const kbImgWidth = 400; const kbImgHeight = 400;
+    const pBaseWidth = 400; const pBaseHeight = 400;
+    const pBaseOffsetX = 70; const pBaseOffsetY = 203;
+
 
     return (
-        <div className="w-full h-full bg-gradient-to-b from-sky-200 to-sky-100 relative overflow-hidden">
-            {/* Sky/Cloud decoration */}
-            <div className="absolute top-4 right-10 text-white/60"><Activity size={64}/></div>
-            
-            <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="xMidYMid meet">
-                {/* Base */}
-                <rect x="10" y="130" width="60" height="20" fill="#334155" />
-                <circle cx="40" cy="130" r="15" fill="#1e293b" />
-                
-                {/* Main Boom */}
-                <line x1={startX} y1={startY} x2={endX} y2={endY} stroke="#e2e8f0" strokeWidth="12" strokeLinecap="round" />
-                <line x1={startX} y1={startY} x2={endX} y2={endY} stroke="#94a3b8" strokeWidth="2" />
-                
-                {/* Cylinder */}
-                <line x1={startX + 30} y1={startY} x2={startX + 60 * Math.cos(rad)} y2={startY - 60 * Math.sin(rad)} stroke="#475569" strokeWidth="6" />
+        <div className="w-full h-full bg-gradient-to-b from-[#e0f2fe] to-white relative overflow-hidden border border-slate-300 rounded shadow-inner">
+             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
-                {/* Rope */}
-                <line x1={endX} y1={endY} x2={endX} y2={endY + ropeDrop} stroke="#000" strokeWidth="2" strokeDasharray="4 2" />
-                
-                {/* Hook/Load */}
-                <rect x={endX - 10} y={endY + ropeDrop} width="20" height="20" fill={activeAlarm ? "#ef4444" : "#f59e0b"} stroke="#78350f" />
-                
-                {/* Angle Text */}
-                <text x="150" y="20" fontSize="12" fill="#334155" fontWeight="bold">ANGLE: {angle.toFixed(1)}°</text>
-            </svg>
-            
-            {/* Alert Overlay if active */}
-            {activeAlarm && (
-                <div className="absolute top-2 right-2 bg-red-600/90 text-white px-3 py-1 rounded text-xs font-bold animate-pulse flex items-center gap-1 shadow-lg">
-                    <AlertCircle size={14} /> ALERT
-                </div>
-            )}
+             <svg width="100%" height="100%" viewBox={viewBox} className="transition-all duration-300 ease-out">
+                 {/* ... Defs ... */}
+                 <defs>
+                    <filter id="dropshadow" height="130%">
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/> 
+                      <feOffset dx="1" dy="2" result="offsetblur"/>
+                      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+                      <feMerge><feMergeNode in="offsetblur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                 </defs>
+
+                 {/* Ground */}
+                 <rect x="-1000" y={groundY} width="4000" height="1000" fill="#cbd5e1" />
+                 <line x1="-1000" y1={groundY} x2="3000" y2={groundY} stroke="#94a3b8" strokeWidth="2"/>
+                 
+                 {/* 液压缸 */}
+                 <Cylinder start={mcBase} end={mcAttach} thickness={7} isBlack={true} fixedLen={55} />
+                 <Cylinder start={kcBase} end={kcAttach} thickness={6} isBlack={true} fixedLen={55} />
+                 
+                 {/* 基座图片 */}
+                 <g transform={`translate(${pivotX}, ${pivotY})`}>
+                     <image href={IMAGE_PATHS.PEDESTAL_BASE} x={-pBaseOffsetX} y={-pBaseOffsetY} width={pBaseWidth} height={pBaseHeight} /> {/* 假设 IMAGE_PATHS 已定义 */}
+                 </g>
+
+                 {/* ================= DEBUG 骨骼层 (点和线) ================= */}
+                 {DEBUG_MODE && (
+                     <g>
+                         {/* 红点 (主臂旋转中心) */}
+                         <circle cx={pivotWorldX} cy={pivotWorldY} r={3} fill="red" stroke="white" strokeWidth={0.5}/>
+                         {/* 绿点 (主臂尖端/折臂根部) */}
+                         <circle cx={jointX} cy={jointY} r={3} fill="#00ff00" stroke="white" strokeWidth={0.5}/>
+                         {/* 蓝点 (折臂尖端) */}
+                         <circle cx={tipX} cy={tipY} r={3} fill="blue" stroke="white" strokeWidth={0.5}/>
+                         {/* 骨骼连线 (红点 -> 绿点) */}
+                         <line x1={pivotWorldX} y1={pivotWorldY} x2={jointX} y2={jointY} stroke="red" strokeWidth="1" strokeDasharray="2 2" />
+                         {/* 骨骼连线 (绿点 -> 蓝点) */}
+                         <line x1={jointX} y1={jointY} x2={tipX} y2={tipY} stroke="blue" strokeWidth="1" strokeDasharray="2 2" />
+                     </g>
+                 )}
+                 
+                 {/* ================= KNUCKLE BOOM (折臂图片) ================= */}
+                 {/* 注意：这里的旋转角度仍然使用原始的 knuckleAngle 进行计算 */}
+                 <g transform={`translate(${jointX}, ${jointY}) rotate(${-(angle - knuckleAngle) + initialKnuckleOffsetAngle})`} filter="url(#dropshadow)">
+                     <image 
+                         href={IMAGE_PATHS.KNUCKLE_BOOM}
+                         x={-kbImgOffsetX} 
+                         y={-kbImgOffsetY} 
+                         width={kbImgWidth} 
+                         height={kbImgHeight} 
+                     />
+                 </g>
+                 
+                 {/* ================= MAIN BOOM (主臂图片) ================= */}
+                 <g transform={`translate(${pivotWorldX}, ${pivotWorldY}) rotate(${-angle + initialBoomOffsetAngle})`} filter="url(#dropshadow)">
+                     <image 
+                         href={IMAGE_PATHS.MAIN_BOOM}
+                         x={-mbImgOffsetX} 
+                         y={-mbImgOffsetY} 
+                         width={mbImgWidth} 
+                         height={mbImgHeight} 
+                     />
+                 </g>
+
+                 {/* 钢丝绳、吊钩和负载 */}
+                 <line x1={tipX} y1={tipY} x2={tipX} y2={tipY + ropeDrop} stroke="#1f2937" strokeWidth="1" />
+                 <g transform={`translate(${tipX}, ${tipY + ropeDrop})`}>
+                     <rect x="-6" y="-10" width="12" height="14" rx="2" fill="#facc15" stroke="#ca8a04" />
+                     <path d="M0,4 L0,10 C0,14 5,14 5,10" fill="none" stroke="#ca8a04" strokeWidth="2.5" />
+                     <rect x="-10" y="14" width="20" height="20" fill={activeAlarm ? "#ef4444" : "#cbd5e1"} stroke="#64748b" strokeWidth="1" />
+                     <text x="0" y="26" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#1e293b">{weight?.toFixed(1)}T</text>
+                 </g>
+                 
+                 {/* 状态信息框 */}
+                 <g transform="translate(10, 10)">
+                     <rect width="90" height="50" rx="4" fill="rgba(255,255,255,0.9)" stroke="#e2e8f0" />
+                     <text x="8" y="15" fontSize="8" fontWeight="bold" fill="#334155">MAIN ∠: {angle.toFixed(1)}°</text>
+                     {/* 💡 4. 使用映射后的角度进行显示 */}
+                     <text x="8" y="27" fontSize="8" fontWeight="bold" fill="#334155">KNUCKLE: {angleToDisplay.toFixed(1)}°</text>
+                     <text x="8" y="39" fontSize="8" fontWeight="bold" fill="#334155">RADIUS: {ropeLength.toFixed(1)}m</text>
+                 </g>
+
+                 {activeAlarm && (
+                     <g transform="translate(240, 10)">
+                         <rect width="50" height="20" rx="4" fill="#ef4444" />
+                         <text x="25" y="14" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">ALERT</text>
+                     </g>
+                 )}
+             </svg>
         </div>
     );
-};
+}
 
-// 3. Code-based Map Visualization
-const MapVisual = () => (
+function MapVisual() {
+    return (
     <div className="w-full h-full bg-[#0f172a] relative overflow-hidden">
         <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
-            {/* Fake Coastline */}
             <path d="M0,0 L400,0 L400,200 L0,200 Z" fill="#001e3c" />
             <path d="M0,50 Q50,40 100,80 T200,60 T300,100 T400,80 L400,200 L0,200 Z" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-            
-            {/* Grid Lines */}
-            <line x1="100" y1="0" x2="100" y2="200" stroke="#1e293b" strokeDasharray="5 5" />
-            <line x1="200" y1="0" x2="200" y2="200" stroke="#1e293b" strokeDasharray="5 5" />
-            <line x1="300" y1="0" x2="300" y2="200" stroke="#1e293b" strokeDasharray="5 5" />
-            <line x1="0" y1="100" x2="400" y2="100" stroke="#1e293b" strokeDasharray="5 5" />
-
-            {/* Ship Route */}
-            <path d="M50,150 Q150,120 250,140 T350,110" fill="none" stroke="#fbbf24" strokeWidth="2" strokeDasharray="4 4" />
-            
-            {/* Ship Location */}
-            <circle cx="250" cy="140" r="4" fill="#ef4444" className="animate-ping" />
-            <circle cx="250" cy="140" r="3" fill="#fbbf24" />
+            <line x1="100" y1="0" x2="100" y2="200" stroke="#1e293b" strokeDasharray="5 5" opacity="0.3" />
+            <line x1="200" y1="0" x2="200" y2="200" stroke="#1e293b" strokeDasharray="5 5" opacity="0.3" />
+            <line x1="300" y1="0" x2="300" y2="200" stroke="#1e293b" strokeDasharray="5 5" opacity="0.3" />
+            <line x1="0" y1="100" x2="400" y2="100" stroke="#1e293b" strokeDasharray="5 5" opacity="0.3" />
+            <path d="M50,150 Q150,120 250,140" fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.6" />
+            <g transform="translate(250, 140)">
+                <circle r="6" fill="#fbbf24" stroke="#fff" strokeWidth="2" />
+                <circle r="12" fill="#ef4444" opacity="0.5">
+                    <animate attributeName="opacity" values="0.8;0;0.8" dur="1s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="6;18;6" dur="1s" repeatCount="indefinite" />
+                </circle>
+                <text x="15" y="5" fill="#fbbf24" fontSize="10" fontWeight="bold" fontFamily="monospace">VESSEL-01</text>
+            </g>
         </svg>
         <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2 py-1 text-[10px] text-green-400 border border-green-900 font-mono">
             LAT: 1.2834 N <br/> LON: 103.8607 E
         </div>
     </div>
-);
+    );
+}
 
-// --- Sub-Components defined OUTSIDE App to prevent re-creation ---
-
-const Header = ({ onNavigateHome, currentTime, language, setLanguage }: any) => {
+function Header({ onNavigateHome, currentTime, language, setLanguage }: any) {
     const [showLangMenu, setShowLangMenu] = useState(false);
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
 
@@ -346,8 +590,7 @@ const Header = ({ onNavigateHome, currentTime, language, setLanguage }: any) => 
         <button onClick={onNavigateHome} className="hover:bg-white/10 p-2 rounded transition-colors">
             <Home size={26} className="text-[#00A8E8]" />
         </button>
-        {/* Logo Replacement: Code-based Component */}
-        <KTSLogo />
+        <KTSLogo color="text-white" />
       </div>
 
       <div className="absolute left-1/2 transform -translate-x-1/2 bg-[#001F3F] px-8 py-1 rounded-b-xl border-b border-l border-r border-gray-700 shadow-lg">
@@ -389,9 +632,10 @@ const Header = ({ onNavigateHome, currentTime, language, setLanguage }: any) => 
       </div>
     </header>
   );
-};
+}
 
-const SideButton = ({ label, icon: Icon, onClick, active, colorClass = "from-[#002B55] to-slate-800" }: any) => (
+function SideButton({ label, icon: Icon, onClick, active, colorClass = "from-[#002B55] to-slate-800" }: any) {
+    return (
     <button 
       onClick={onClick}
       className={`
@@ -411,17 +655,16 @@ const SideButton = ({ label, icon: Icon, onClick, active, colorClass = "from-[#0
       </span>
       {active && <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_5px_white]"></div>}
     </button>
-);
+    );
+}
 
-const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: any) => {
+function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: any) {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
 
     return (
     <div className="flex h-screen bg-gray-100 font-sans text-slate-800 overflow-hidden">
-       {/* Mobile Sidebar */}
        <div className="w-20 bg-white border-r border-gray-200 flex flex-col items-center py-6 gap-8 shadow-sm z-10 relative">
-           {/* Logo Replacement */}
            <div className="scale-75 origin-center"><KTSLogo /></div>
            
            <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#00509E] transition-colors group">
@@ -463,11 +706,9 @@ const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: an
            </div>
        </div>
 
-       {/* Content */}
        <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">
           <div className="max-w-5xl mx-auto space-y-8">
               
-              {/* Header */}
               <div className="flex justify-between items-center">
                   <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                       <span className="bg-[#00509E] w-2 h-8 rounded-full"></span>
@@ -480,13 +721,12 @@ const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: an
                   </div>
               </div>
 
-              {/* Banner */}
               <div 
-                className="relative h-64 rounded-3xl overflow-hidden shadow-2xl cursor-pointer group"
+                className="relative h-64 rounded-3xl overflow-hidden shadow-2xl cursor-pointer group bg-gradient-to-r from-sky-400 via-[#00A8E8] to-[#00509E]"
                 onClick={() => setCurrentView(ViewState.DASHBOARD)}
               >
-                  <img src={IMG_SHIP_BANNER} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="VALLIANZ HOPE"/>
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#00509E]/90 via-[#00509E]/40 to-transparent p-10 flex flex-col justify-center text-white">
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
+                  <div className="absolute inset-0 p-10 flex flex-col justify-center text-white">
                       <div className="bg-white/20 backdrop-blur w-fit px-4 py-1 rounded-full text-xs font-bold uppercase mb-4 border border-white/30">VALLIANZ HOPE</div>
                       <h2 className="text-4xl font-bold mb-4 flex items-center gap-3">
                           {t.reportCenter} <div className="bg-red-500 text-xs px-2 py-1 rounded-full animate-pulse">8 {t.newAlerts}</div>
@@ -500,12 +740,11 @@ const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: an
                   </div>
               </div>
 
-              {/* Stats Grid */}
               <div className="grid grid-cols-5 gap-6">
                   {[
                       { val: 5, label: t.statAlarm, color: "bg-orange-500", text: "text-white", view: ViewState.ALARM_HISTORY },
                       { val: 2, label: t.statMaint, color: "bg-yellow-400", text: "text-slate-900", view: ViewState.MAINTENANCE_RECORD },
-                      { val: 3, label: t.statTodo, color: "bg-emerald-500", text: "text-white", view: null },
+                      { val: 3, label: t.statTodo, color: "bg-emerald-500", text: "text-white", view: ViewState.TODO_LIST },
                       { val: 1, label: t.statService, color: "bg-yellow-200", text: "text-yellow-800", view: ViewState.MAINTENANCE_RECORD },
                       { val: 0, label: t.statAnomaly, color: "bg-yellow-100", text: "text-yellow-600", view: ViewState.REPAIR_RECORD },
                   ].map((stat, idx) => (
@@ -520,7 +759,6 @@ const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: an
                   ))}
               </div>
 
-              {/* Search & List */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                   <div className="relative mb-6">
                       <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
@@ -568,16 +806,42 @@ const LandingView = ({ setCurrentView, alarmHistory, language, setLanguage }: an
   );
 }
 
-const DashboardView = ({ data, activeAlarm, setActiveAlarm, language }: any) => {
+function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
+
+    // =========================================================================
+    // 💡 1. 复制并定义反向线性映射函数：将 [-70, 43] 反向映射到 [150, 30]
+    //    确保显示值与 RemoteControlView 同步。
+    // =========================================================================
+    const mapKnuckleAngle = (knuckleAngle) => {
+        const inMin = -70;   // 原始数据的最小值 (对应显示 150°)
+        const inMax = 43;    // 原始数据的最大值 (对应显示 30°)
+        const outMin = 150;  // 目标显示值 (当原始值为 inMin 时)
+        const outMax = 30;   // 目标显示值 (当原始值为 inMax 时)
+
+        const inputRange = inMax - inMin; // 113
+        const outputRange = outMax - outMin; // -120
+        
+        if (inputRange === 0) return outMin;
+
+        // 线性映射公式: OutMin + OutputRange * (InputValue - InMin) / InputRange
+        const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
+
+        // 限制结果在 [30, 150] 范围内
+        return Math.min(Math.max(mappedAngle, outMax), outMin); 
+    };
+
+    // 💡 2. 计算要显示给 CraneVisual 的折臂角度
+    const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
+
+
     return (
     <div className="grid grid-cols-12 gap-1 h-full bg-[#001F3F] p-2">
-      {/* Left Panel: Stats */}
       <div className="col-span-3 bg-[#002B55]/80 border border-slate-600 rounded-lg p-2 flex flex-col gap-2 shadow-inner">
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-[#0f172a] rounded p-2 border border-slate-700 shadow-lg relative">
              <div className="absolute top-1 left-2 text-[10px] text-gray-400 font-bold uppercase">{t.oilTemp}</div>
-             <Gauge value={data.oilTemp} min={0} max={120} label="TEMP" unit="°C" color={data.oilTemp > 90 ? "#ef4444" : "#00A8E8"} />
+             <Gauge value={data.oilTemp} min={0} max={120} label="TEMP" unit="°C" color={data.oilTemp > 90 ? "#ef4444" : "#00A8E8"} /> {/* 假设 Gauge 组件已定义 */}
           </div>
           <div className="bg-[#0f172a] rounded p-2 border border-slate-700 shadow-lg relative">
              <div className="absolute top-1 left-2 text-[10px] text-gray-400 font-bold uppercase">{t.windSpeed}</div>
@@ -585,7 +849,6 @@ const DashboardView = ({ data, activeAlarm, setActiveAlarm, language }: any) => 
           </div>
         </div>
 
-        {/* Data Table */}
         <div className="flex-1 bg-[#0f172a] rounded border border-slate-700 p-1 overflow-auto">
            <table className="w-full text-xs text-left border-collapse">
              <tbody>
@@ -607,146 +870,241 @@ const DashboardView = ({ data, activeAlarm, setActiveAlarm, language }: any) => 
         </div>
       </div>
 
-      {/* Center Panel: Visualization */}
-      <div className="col-span-9 flex flex-col gap-2">
-          {/* Top: Crane Visual */}
-          <div className="flex-1 bg-black rounded-lg border border-slate-600 relative overflow-hidden group">
-            {/* Dynamic Code-based Crane Visual */}
-            <CraneVisual angle={data.mainAngle} ropeLength={data.ropeLength} activeAlarm={!!activeAlarm} />
-          </div>
-          
-          {/* Bottom: Map Visual */}
-          <div className="h-1/3 bg-black rounded-lg border border-slate-600 relative overflow-hidden">
-             {/* Dynamic Code-based Map Visual */}
-             <MapVisual />
-          </div>
+      <div className="col-span-9 flex flex-col gap-2 h-full overflow-hidden">
+           <div className="flex-[3] min-h-0 bg-black rounded-lg border border-slate-600 relative overflow-hidden group">
+             <CraneVisual 
+                 angle={data.mainAngle} 
+                 ropeLength={data.ropeLength} 
+                 activeAlarm={!!activeAlarm}
+                 knuckleAngle={data.knuckleAngle} // 动画使用原始值
+                 slewAngle={data.slewAngle}
+                 viewMode="SIDE"
+                 weight={data.liftingWeight}
+                 speed={data.speed}
+                 // 💡 3. 将映射后的角度传递给 CraneVisual 用于显示
+                 displayKnuckleAngle={displayKnuckleAngle} 
+             />
+           </div>
+           
+           <div className="flex-[2] min-h-0 bg-black rounded-lg border border-slate-600 relative overflow-hidden">
+              <MapVisual /> {/* 假设 MapVisual 组件已定义 */}
+           </div>
       </div>
     </div>
     )
-};
+}
 
-const RemoteControlView = ({ data, params, activeAlarm, handleControl, setCurrentView, language }: any) => {
+function RemoteControlView({ data, params, activeAlarm, setActiveControl, clearAlarm, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     const alarmMsg = activeAlarm ? (t.alarms[activeAlarm.code as keyof typeof t.alarms] || activeAlarm.message) : "";
+    const [viewMode, setViewMode] = useState<'SIDE' | 'TOP'>('SIDE');
+    const [zoom, setZoom] = useState(1);
+
+    // =========================================================================
+    // 💡 修正后的线性映射函数：将 [-70, 43] 反向映射到 [150, 30]
+    // =========================================================================
+    const mapKnuckleAngle = (knuckleAngle) => {
+        const inMin = -70;   // 原始数据的最小值 (对应折臂伸出)
+        const inMax = 43;    // 原始数据的最大值 (对应折臂收回)
+        const outMin = 150;  // 目标显示的值：当原始值为 inMin 时显示 150°
+        const outMax = 30;   // 目标显示的值：当原始值为 inMax 时显示 30°
+
+        const inputRange = inMax - inMin; // 43 - (-70) = 113
+        const outputRange = outMax - outMin; // 30 - 150 = -120
+        
+        // 确保分母不为零
+        if (inputRange === 0) return outMin;
+
+        // 线性映射公式: OutMin + OutputRange * (InputValue - InMin) / InputRange
+        const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
+
+        // 限制结果在 [30, 150] 范围内 (注意这里取 min 和 max 的顺序)
+        return Math.min(Math.max(mappedAngle, outMax), outMin); 
+        // 解释：Math.max(mappedAngle, 30) 确保不小于30
+        //       Math.min(..., 150) 确保不大于150
+    };
+
+    // 计算要显示给用户的折臂角度
+    const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
+    
+    // Common props for control buttons - Updated for Auto View Switching
+    const btnProps = (action: string) => ({
+        onMouseDown: () => {
+            setActiveControl(action);
+            if (['SLEW_CCW', 'SLEW_CW'].includes(action)) {
+                setViewMode('TOP');
+            } else {
+                setViewMode('SIDE');
+            }
+        },
+        onMouseUp: () => setActiveControl(null),
+        onMouseLeave: () => setActiveControl(null),
+        className: "absolute z-20 cursor-pointer active:bg-white/20 transition-colors"
+    });
+
+    const handleZoomIn = () => setZoom(prev => Math.min(2, prev + 0.1));
+    const handleZoomOut = () => setZoom(prev => Math.max(0.5, prev - 0.1));
+    const handleResetZoom = () => setZoom(1);
 
     return (
     <div className="h-full flex flex-col bg-gray-300 p-4 rounded relative overflow-hidden">
-        {/* Header Strip */}
         <div className="bg-white p-2 flex justify-between items-center border-b border-gray-400 mb-4 rounded shadow-sm">
             <div className="flex items-center gap-4">
                <div className="flex items-center">
-                    {/* Logo Replacement */}
-                    <KTSLogo />
+                   <KTSLogo /> {/* 假设 KTSLogo 是已定义的组件 */}
                </div>
                <div className="h-6 w-px bg-gray-300"></div>
                <div className="font-mono font-bold text-lg">{new Date().toLocaleString()}</div>
             </div>
-            <button className="bg-gray-700 text-white px-3 py-1 text-xs rounded uppercase font-bold hover:bg-gray-800">{t.clear}</button>
+            {/* Clear Button with Functionality */}
+            <button 
+                className="bg-gray-700 text-white px-3 py-1 text-xs rounded uppercase font-bold hover:bg-gray-800 active:scale-95 transition-transform"
+                onClick={clearAlarm}
+            >
+                {t.clear}
+            </button>
         </div>
 
-        {/* Dashboard Readout */}
-        <div className="bg-gradient-to-b from-gray-200 to-gray-300 border border-gray-400 p-4 rounded-lg mb-4 flex justify-between items-center shadow-inner">
-            <div className="bg-yellow-400 border-4 border-yellow-500 p-2 rounded w-40 text-center shadow">
-                 <div className="text-xs font-bold uppercase mb-1">SWL {params.liftingWeightLimit}T 12M</div>
-                 <div className="font-black text-xl text-red-600 animate-pulse">{t.estop}</div>
-            </div>
-            
-            {/* Visual of Crane */}
-            <div className="flex-1 h-32 relative mx-4 bg-white/50 rounded border border-gray-300 flex items-center justify-center overflow-hidden">
-                {/* Shared SVG Crane Visual */}
-                <CraneVisual angle={data.mainAngle} ropeLength={data.ropeLength} activeAlarm={!!activeAlarm} />
+        {/* SWAPPED: Visual Display Area is now flex-1 (Large) */}
+        <div className="flex-1 bg-gradient-to-b from-gray-200 to-gray-300 border border-gray-400 p-4 rounded-lg mb-4 flex justify-between items-center shadow-inner min-h-0 relative">
+            {/* Visual Container */}
+            <div className="flex-1 h-full mx-4 bg-white/50 rounded border border-gray-300 flex items-center justify-center overflow-hidden relative">
+                <CraneVisual 
+                    angle={data.mainAngle} 
+                    ropeLength={data.ropeLength} 
+                    activeAlarm={!!activeAlarm} 
+                    knuckleAngle={data.knuckleAngle} // 保持原始值不变，用于动画计算
+                    slewAngle={data.slewAngle}
+                    viewMode={viewMode}
+                    weight={data.liftingWeight}
+                    speed={data.speed}
+                    zoom={zoom}
+                    // 💡 传递修正后的映射角度用于显示
+                    displayKnuckleAngle={displayKnuckleAngle} 
+                />
 
-                {/* Warning Banner Text Overlay if needed specific for remote view */}
+                {/* Zoom Controls Overlay */}
+                <div className="absolute right-4 top-4 flex flex-col gap-2 z-20 bg-black/40 p-2 rounded-lg backdrop-blur-sm border border-white/20">
+                    <button 
+                        onClick={handleZoomIn} 
+                        className="bg-white/90 hover:bg-white text-gray-800 p-1.5 rounded shadow transition-transform active:scale-95"
+                        title={t.zoomIn}
+                    >
+                        <ZoomIn size={18} /> {/* 假设 ZoomIn 是已定义的图标组件 */}
+                    </button>
+                    <button 
+                        onClick={handleResetZoom} 
+                        className="bg-white/90 hover:bg-white text-gray-800 p-1.5 rounded shadow transition-transform active:scale-95"
+                        title={t.zoomReset}
+                    >
+                        <Maximize size={18} /> {/* 假设 Maximize 是已定义的图标组件 */}
+                    </button>
+                    <button 
+                        onClick={handleZoomOut} 
+                        className="bg-white/90 hover:bg-white text-gray-800 p-1.5 rounded shadow transition-transform active:scale-95"
+                        title={t.zoomOut}
+                    >
+                        <ZoomOut size={18} /> {/* 假设 ZoomOut 是已定义的图标组件 */}
+                    </button>
+                    <div className="text-[10px] font-bold text-white text-center mt-1 font-mono">
+                        {Math.round(zoom * 100)}%
+                    </div>
+                </div>
+
                 {activeAlarm && (
                     <div className="absolute inset-x-10 top-2 bg-red-600 text-white text-center p-1 text-xs font-bold animate-pulse shadow-lg border-2 border-yellow-400 z-10">
                         {alarmMsg}
                     </div>
                 )}
             </div>
-
-            <div className="bg-gray-100 p-2 rounded border border-gray-300 w-32">
-                <div className="flex justify-between text-xs mb-1"><span>{t.weight}:</span> <b>{data.liftingWeight.toFixed(2)} T</b></div>
-                <div className="flex justify-between text-xs mb-1"><span>{t.length}:</span> <b>{data.ropeLength.toFixed(1)} M</b></div>
-                <div className="flex justify-between text-xs"><span>{t.speed}:</span> <b>0.0 M/min</b></div>
-            </div>
+            {/* Removed right panel, merged into Visual */}
         </div>
 
-        {/* Controller Interface */}
-        <div className="flex-1 bg-[#4b5563] rounded-xl p-8 flex items-center justify-center relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+        {/* SWAPPED: Controls Area is now fixed height (Smaller) */}
+        <div className="h-72 bg-[#4b5563] rounded-xl p-6 flex items-center justify-center relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] shrink-0">
             <div className="w-full max-w-4xl grid grid-cols-3 gap-12">
                 
-                {/* Left Joystick */}
                 <div className="flex flex-col items-center">
-                    <div className="relative w-48 h-48 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                        <span className="absolute top-4 text-[10px] text-gray-400 font-bold uppercase">{t.luffingDw}</span>
-                        <span className="absolute bottom-4 text-[10px] text-gray-400 font-bold uppercase">{t.luffingUp}</span>
-                        <span className="absolute left-2 text-[10px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line">{t.slewingCcw}</span>
-                        <span className="absolute right-2 text-[10px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line">{t.slewingCw}</span>
+                    <div className="relative w-40 h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingDw}</span>
+                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingUp}</span>
+                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCcw}</span>
+                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCw}</span>
 
-                        <div className="w-24 h-24 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10">
-                            <div className="w-16 h-16 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
+                        <div className="w-20 h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
+                            <div className="w-14 h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
                         </div>
 
-                        {/* Interactive Zones */}
-                        <button className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" onMouseDown={() => handleControl('LUFF_DOWN')} />
-                        <button className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" onMouseDown={() => handleControl('LUFF_UP')} />
+                        <button {...btnProps('LUFF_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
+                        <button {...btnProps('LUFF_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
+                        <button {...btnProps('SLEW_CCW')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
+                        <button {...btnProps('SLEW_CW')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
                     </div>
                 </div>
 
-                {/* Center Panel */}
-                <div className="flex flex-col items-center justify-center gap-6">
-                    <div className="flex gap-4 mb-4">
+                <div className="flex flex-col items-center justify-center gap-4">
+                    <div className="flex gap-4 mb-2">
                         {[1,2,3].map(i => (
-                            <div key={i} className="w-12 h-12 rounded-full bg-gray-700 border-2 border-gray-500 shadow flex items-center justify-center">
-                                <div className="w-1 h-6 bg-white rounded transform rotate-45"></div>
+                            <div key={i} className="w-10 h-10 rounded-full bg-gray-700 border-2 border-gray-500 shadow flex items-center justify-center">
+                                <div className="w-1 h-5 bg-white rounded transform rotate-45"></div>
                             </div>
                         ))}
                     </div>
-                    <div className="w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-400 rounded flex items-center justify-center shadow-lg border border-gray-500">
-                        <div className="w-16 h-16 bg-gradient-to-br from-gray-300 to-white rounded-full border border-gray-300 shadow-inner"></div>
+                    <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded flex items-center justify-center shadow-lg border border-gray-500">
+                        <div className="w-12 h-12 bg-gradient-to-br from-gray-300 to-white rounded-full border border-gray-300 shadow-inner"></div>
                     </div>
-                    <div className="flex gap-2 w-full mt-4">
-                         <button className="flex-1 bg-cyan-600 text-white text-xs font-bold py-2 rounded border-b-4 border-cyan-800 active:border-0 active:mt-1">{t.top}</button>
-                         <button className="flex-1 bg-cyan-600 text-white text-xs font-bold py-2 rounded border-b-4 border-cyan-800 active:border-0 active:mt-1">{t.side}</button>
-                         <button className="flex-1 bg-cyan-600 text-white text-xs font-bold py-2 rounded border-b-4 border-cyan-800 active:border-0 active:mt-1" onClick={() => setCurrentView(ViewState.DASHBOARD)}>{t.exit}</button>
+                    <div className="flex gap-2 w-full mt-2">
+                         <button 
+                            onClick={() => setViewMode('TOP')}
+                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'TOP' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
+                        >
+                            {t.top}
+                        </button>
+                         <button 
+                            onClick={() => setViewMode('SIDE')}
+                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'SIDE' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
+                        >
+                            {t.side}
+                        </button>
+                         <button className="flex-1 bg-red-600 text-white text-[10px] font-bold py-2 rounded border-b-4 border-red-800 active:border-0 active:mt-1">{t.exit}</button>
                     </div>
                 </div>
 
-                {/* Right Joystick */}
                 <div className="flex flex-col items-center">
-                    <div className="relative w-48 h-48 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                        <span className="absolute top-4 text-[10px] text-gray-400 font-bold uppercase">{t.hoistingDw}</span>
-                        <span className="absolute bottom-4 text-[10px] text-gray-400 font-bold uppercase">{t.hoistingUp}</span>
-                        <span className="absolute left-2 text-[10px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line">{t.knuckleIn}</span>
-                        <span className="absolute right-2 text-[10px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line">{t.knuckleOut}</span>
+                    <div className="relative w-40 h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingDw}</span>
+                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingUp}</span>
+                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleIn}</span>
+                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleOut}</span>
 
-                         <div className="w-24 h-24 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10">
-                            <div className="w-16 h-16 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
+                         <div className="w-20 h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
+                            <div className="w-14 h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
                         </div>
 
-                        {/* Interactive Zones */}
-                         <button className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" onMouseDown={() => handleControl('HOIST_DOWN')} />
-                        <button className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" onMouseDown={() => handleControl('HOIST_UP')} />
+                        <button {...btnProps('HOIST_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
+                        <button {...btnProps('HOIST_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
+                        <button {...btnProps('KNUCKLE_IN')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
+                        <button {...btnProps('KNUCKLE_OUT')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
-    )
-};
+    );
+}
 
-const ParameterView = ({ data, params, saveParameter, setCurrentView, language }: any) => {
-    const [subView, setSubView] = useState<'menu' | 'lifting'>('menu');
+function ParameterView({ data, params, saveParameter, setCurrentView, language }: any) {
+    const [subView, setSubView] = useState<'menu' | 'detail'>('menu');
+    const [selectedParam, setSelectedParam] = useState<string>('');
     const [localParams, setLocalParams] = useState(params);
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
 
-    if (subView === 'lifting') {
+    if (subView === 'detail') {
         return (
             <div className="flex flex-col h-full bg-[#2a2a2a] p-10 items-center animate-in fade-in">
                  <div className="w-full max-w-3xl bg-[#333] border border-gray-600 rounded-lg overflow-hidden shadow-2xl">
                      <div className="bg-[#87CEEB] p-4 text-center border-b border-gray-500">
-                         <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wider">{t.liftingWeightSetting}</h2>
+                         <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wider">{selectedParam}</h2>
                      </div>
                      
                      <div className="p-12 space-y-8 bg-[#333]">
@@ -814,10 +1172,10 @@ const ParameterView = ({ data, params, saveParameter, setCurrentView, language }
                 {[t.liftingWeight, t.speed, t.workAngle, t.statAlarm, t.hoist, t.knuckle, t.slew, t.luffing].map((item, idx) => (
                     <button 
                         key={idx}
-                        onClick={() => idx === 0 ? setSubView('lifting') : null}
+                        onClick={() => { setSelectedParam(item); setSubView('detail'); }}
                         className={`
                             h-16 rounded-lg shadow-md border font-bold text-white uppercase tracking-widest transition-transform active:scale-95
-                            ${idx === 0 ? 'bg-[#87CEEB] border-blue-400 hover:bg-blue-300 text-slate-900 ring-4 ring-blue-100' : 'bg-[#87CEEB] opacity-60 cursor-not-allowed border-gray-300 text-slate-700'}
+                            bg-[#87CEEB] border-blue-400 hover:bg-blue-300 text-slate-900 ring-4 ring-blue-100
                         `}
                     >
                         {item}
@@ -830,215 +1188,363 @@ const ParameterView = ({ data, params, saveParameter, setCurrentView, language }
          </div>
       </div>
     );
-};
+}
 
-const RecordView = ({ type, setCurrentView, saveRecord, language }: any) => {
-     // Form State
-     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
-     const [form, setForm] = useState<MaintenanceEntry>({
-         id: Date.now().toString(),
-         type,
-         component: 'Crane Boom',
-         date: new Date().toLocaleDateString('en-GB'),
-         time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'}),
-         partName: '',
-         description: '',
-         employee: 'Operator'
-     });
+function RecordView({ type, setCurrentView, saveRecord, language, records }: any) {
+    const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
+    const [view, setView] = useState<'list' | 'entry'>('list');
+    const [formData, setFormData] = useState({
+        component: '',
+        partName: '',
+        description: '',
+        employee: ''
+    });
 
-     const typeLabel = type === 'Maintenance' ? t.maintenanceRecord : t.repairRecord;
+    const handleSubmit = () => {
+        const newRecord: MaintenanceEntry = {
+            id: Date.now().toString(),
+            type: type,
+            component: formData.component,
+            partName: formData.partName,
+            description: formData.description,
+            employee: formData.employee,
+            date: new Date().toLocaleDateString('en-GB'),
+            time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'})
+        };
+        saveRecord(newRecord);
+        setView('list');
+        setFormData({ component: '', partName: '', description: '', employee: '' });
+    };
 
-     return (
-         <div className="h-full flex items-center justify-center bg-[#2d3748]">
-             <div className="w-full max-w-4xl bg-[#4a5568] border-2 border-gray-600 rounded shadow-2xl overflow-hidden flex flex-col">
-                 <div className="bg-[#87CEEB] p-3 text-center border-b border-gray-500 flex justify-between items-center px-6">
-                     <span className="font-bold text-slate-800 uppercase text-lg">{t.recordEntry} - {typeLabel}</span>
-                     <div className="flex gap-2 text-xs">
-                         <span className="font-mono text-slate-800">DATA: {form.date}</span>
-                         <span className="font-mono text-slate-800">TIME: {form.time}</span>
-                     </div>
-                 </div>
+    const filteredRecords = records ? records.filter((r: MaintenanceEntry) => r.type === type) : [];
 
-                 <div className="p-8 space-y-6">
-                     {/* Row 1 */}
-                     <div className="flex items-center gap-4">
-                         <label className="w-32 text-right text-gray-300 font-bold uppercase text-xs">{t.parts}</label>
-                         <div className="flex-1 bg-white p-2 rounded flex items-center justify-between border border-gray-400">
-                             <span className="font-bold text-gray-800">{form.component}</span>
-                             <div className="bg-[#F59E0B] p-1 rounded text-white"><LayoutGrid size={16}/></div>
-                         </div>
-                     </div>
-                     
-                     {/* Row 2 */}
-                     <div className="flex items-center gap-4">
-                         <label className="w-32 text-right text-gray-300 font-bold uppercase text-xs">{t.itemProject}</label>
-                         <input 
-                            className="flex-1 bg-white p-2 rounded border border-gray-400 font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            placeholder="e.g., Wire Rope Greasing"
-                            value={form.partName}
-                            onChange={(e) => setForm({...form, partName: e.target.value})}
-                         />
-                         <div className="text-[#F59E0B]"><PenTool size={24}/></div>
-                     </div>
-
-                     {/* Details Row */}
-                     <div className="flex gap-4 pl-36">
-                         <div className="bg-white rounded p-2 border border-gray-400 flex-1">
-                             <span className="text-[10px] text-gray-500 uppercase font-bold block">{t.partName}</span>
-                             <input className="w-full font-bold text-sm outline-none" />
-                         </div>
-                         <div className="bg-white rounded p-2 border border-gray-400 flex-1">
-                             <span className="text-[10px] text-gray-500 uppercase font-bold block">{t.model}</span>
-                             <input className="w-full font-bold text-sm outline-none" />
-                         </div>
-                     </div>
-
-                     {/* Content Area */}
-                     <div className="flex items-start gap-4 h-32">
-                         <label className="w-32 text-right text-gray-300 font-bold uppercase text-xs mt-2">{t.jobContent}</label>
-                         <textarea 
-                            className="flex-1 h-full bg-white p-4 rounded border border-gray-400 resize-none font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            placeholder={t.descriptionPlaceholder}
-                            value={form.description}
-                            onChange={(e) => setForm({...form, description: e.target.value})}
-                         ></textarea>
-                     </div>
-                 </div>
-
-                 {/* Footer Actions */}
-                 <div className="bg-[#2d3748] p-4 flex justify-between items-center border-t border-gray-600">
-                     <div className="bg-white rounded-full px-4 py-1 flex items-center gap-2 border border-gray-400">
-                         <Search size={16} className="text-gray-500"/>
-                         <input className="bg-transparent outline-none text-sm w-32" placeholder="Search" />
-                     </div>
-                     
-                     <div className="flex gap-4">
-                         <button className="bg-[#87CEEB] hover:bg-blue-300 text-slate-800 px-4 py-2 rounded font-bold text-xs shadow">{t.exportOrder}</button>
-                         <button 
-                            onClick={() => saveRecord(form)}
-                            className="bg-[#00A8E8] hover:bg-cyan-500 text-white px-8 py-2 rounded font-bold shadow-lg border border-cyan-300 transform active:scale-95 transition-transform"
-                        >
-                             {t.save}
-                         </button>
-                         <button 
-                            onClick={() => setCurrentView(ViewState.DASHBOARD)}
-                            className="bg-[#87CEEB] hover:bg-blue-300 text-slate-800 px-6 py-2 rounded font-bold shadow"
-                        >
-                             {t.exit}
-                         </button>
-                     </div>
+    return (
+        <div className="h-full bg-gray-100 p-6 flex flex-col gap-4">
+             <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                     <span className="w-2 h-8 bg-blue-600 rounded-full"></span>
+                     {type === 'Maintenance' ? t.maintenanceRecord : t.repairRecord}
+                 </h2>
+                 <div className="flex gap-2">
+                     <button 
+                        onClick={() => setView('list')} 
+                        className={`px-4 py-2 rounded font-bold ${view === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}
+                     >
+                        {t.viewHistory}
+                     </button>
+                     <button 
+                        onClick={() => setView('entry')} 
+                        className={`px-4 py-2 rounded font-bold ${view === 'entry' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}
+                     >
+                        {t.recordEntry}
+                     </button>
+                     <button onClick={() => setCurrentView(ViewState.LANDING)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">{t.back}</button>
                  </div>
              </div>
-         </div>
-     )
-};
 
-const AlarmHistoryView = ({ alarmHistory, setCurrentView, language }: any) => {
+             {view === 'list' ? (
+                 <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col">
+                     <div className="overflow-auto flex-1">
+                         <table className="w-full text-left">
+                             <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-xs border-b border-gray-200 sticky top-0">
+                                 <tr>
+                                     <th className="p-4">{t.date}</th>
+                                     <th className="p-4">{t.time}</th>
+                                     <th className="p-4">{t.parts}</th>
+                                     <th className="p-4">{t.partName}</th>
+                                     <th className="p-4">{t.jobContent}</th>
+                                     <th className="p-4">Employee</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="divide-y divide-gray-100">
+                                 {filteredRecords.map((rec: MaintenanceEntry) => (
+                                     <tr key={rec.id} className="hover:bg-blue-50 transition-colors">
+                                         <td className="p-4 font-mono text-sm text-gray-500">{rec.date}</td>
+                                         <td className="p-4 font-mono text-sm text-gray-500">{rec.time}</td>
+                                         <td className="p-4 font-bold text-slate-700">{rec.component}</td>
+                                         <td className="p-4 text-slate-600">{rec.partName}</td>
+                                         <td className="p-4 text-slate-600">{rec.description}</td>
+                                         <td className="p-4 text-slate-600">{rec.employee}</td>
+                                     </tr>
+                                 ))}
+                                 {filteredRecords.length === 0 && (
+                                     <tr><td colSpan={6} className="p-8 text-center text-gray-400 italic">No records found.</td></tr>
+                                 )}
+                             </tbody>
+                         </table>
+                     </div>
+                     <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+                         <button className="flex items-center gap-2 text-blue-600 font-bold hover:bg-blue-100 px-4 py-2 rounded">
+                             <Download size={18}/> {t.exportOrder}
+                         </button>
+                     </div>
+                 </div>
+             ) : (
+                 <div className="flex-1 bg-white rounded-lg shadow-sm p-8 flex justify-center overflow-auto">
+                     <div className="w-full max-w-2xl space-y-6">
+                         <div className="grid grid-cols-2 gap-6">
+                             <div className="space-y-2">
+                                 <label className="font-bold text-gray-700">{t.parts}</label>
+                                 <input 
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    value={formData.component}
+                                    onChange={e => setFormData({...formData, component: e.target.value})}
+                                    placeholder="e.g. Main Hoist"
+                                 />
+                             </div>
+                             <div className="space-y-2">
+                                 <label className="font-bold text-gray-700">{t.partName}</label>
+                                 <input 
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.partName}
+                                    onChange={e => setFormData({...formData, partName: e.target.value})}
+                                    placeholder="e.g. Brake Pads"
+                                 />
+                             </div>
+                         </div>
+                         <div className="space-y-2">
+                             <label className="font-bold text-gray-700">{t.jobContent}</label>
+                             <textarea 
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded h-32 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                value={formData.description}
+                                onChange={e => setFormData({...formData, description: e.target.value})}
+                                placeholder={t.descriptionPlaceholder}
+                             />
+                         </div>
+                         <div className="space-y-2">
+                             <label className="font-bold text-gray-700">Employee / Operator</label>
+                             <input 
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={formData.employee}
+                                onChange={e => setFormData({...formData, employee: e.target.value})}
+                                placeholder="Name"
+                             />
+                         </div>
+                         <div className="pt-4 flex gap-4">
+                             <button onClick={handleSubmit} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded font-bold shadow-lg transition-transform active:scale-95">
+                                 {t.save}
+                             </button>
+                             <button onClick={() => setView('list')} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded font-bold">
+                                 Cancel
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             )}
+        </div>
+    )
+}
+
+function ToDoView({ data, setCurrentView, language }: any) {
+    const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
+    const [zoom, setZoom] = useState(1);
+    const [selectedTask, setSelectedTask] = useState(1);
+    
+    // Hardcoded tasks for demo
+    const tasks = [
+        { id: 1, title: 'Check Main Hoist Wire Rope', status: 'Pending', priority: 'High', date: '2025-11-12' },
+        { id: 2, title: 'Inspect Hydraulic Pump Pressure', status: 'Pending', priority: 'Medium', date: '2025-11-13' },
+        { id: 3, title: 'Lubricate Knuckle Joint', status: 'Pending', priority: 'Low', date: '2025-11-14' },
+    ];
+
+    // =========================================================================
+    // 💡 1. 复制并定义反向线性映射函数：将 [-70, 43] 反向映射到 [150, 30]
+    //    确保显示值与 RemoteControlView/DashboardView 同步。
+    // =========================================================================
+    const mapKnuckleAngle = (knuckleAngle) => {
+        const inMin = -70;   // 原始数据的最小值 (对应显示 150°)
+        const inMax = 43;    // 原始数据的最大值 (对应显示 30°)
+        const outMin = 150;  // 目标显示值 (当原始值为 inMin 时)
+        const outMax = 30;   // 目标显示值 (当原始值为 inMax 时)
+
+        const inputRange = inMax - inMin; // 113
+        const outputRange = outMax - outMin; // -120
+        
+        if (inputRange === 0) return outMin;
+
+        // 线性映射公式
+        const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
+
+        // 限制结果在 [30, 150] 范围内
+        return Math.min(Math.max(mappedAngle, outMax), outMin); 
+    };
+
+    // 💡 2. 计算要显示给 CraneVisual 的折臂角度
+    const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
+    
+    // --- Zoom handlers (保持不变) ---
+    const handleZoomIn = () => setZoom(prev => Math.min(2, prev + 0.1));
+    const handleZoomOut = () => setZoom(prev => Math.max(0.5, prev - 0.1));
+    const handleResetZoom = () => setZoom(1);
+
+    return (
+        <div className="h-full bg-gray-100 p-6 flex gap-6">
+            {/* Left List */}
+            <div className="w-80 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden border border-gray-200">
+                <div className="p-4 border-b border-gray-200 bg-emerald-50 flex justify-between items-center">
+                    <h3 className="font-bold text-emerald-800">{t.statTodo}</h3>
+                    <div className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">3</div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {tasks.map(task => (
+                        <div 
+                            key={task.id} 
+                            onClick={() => setSelectedTask(task.id)}
+                            className={`p-3 rounded border transition-all cursor-pointer ${
+                                selectedTask === task.id 
+                                ? 'bg-emerald-100 border-emerald-500 shadow-sm' 
+                                : 'bg-white border-gray-100 hover:border-emerald-300'
+                            }`}
+                        >
+                            <div className="flex justify-between items-center mb-1">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                    task.priority === 'High' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
+                                }`}>{task.priority}</span>
+                                <span className="text-xs text-gray-400">{task.date}</span>
+                            </div>
+                            <div className="text-sm font-bold text-slate-700">{task.title}</div>
+                        </div>
+                    ))}
+                </div>
+                <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
+                    <button onClick={() => setCurrentView(ViewState.LANDING)} className="text-sm font-bold text-gray-500 hover:text-gray-700 flex items-center justify-center gap-2">
+                        <ArrowLeft size={16} /> {t.back}
+                    </button>
+                </div>
+            </div>
+
+            {/* Right Visual */}
+            <div className="flex-1 bg-white rounded-lg shadow-sm p-1 flex flex-col border border-gray-200 relative">
+                <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-3 py-2 rounded shadow border border-gray-200">
+                     <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Visual Inspection</div>
+                     <div className="font-bold text-emerald-700">{tasks.find(t => t.id === selectedTask)?.title}</div>
+                </div>
+
+                <div className="flex-1 bg-slate-100 rounded overflow-hidden relative border border-slate-200">
+                    <CraneVisual 
+                        angle={data.mainAngle} 
+                        ropeLength={data.ropeLength} 
+                        activeAlarm={false} 
+                        knuckleAngle={data.knuckleAngle} // 动画使用原始值
+                        slewAngle={data.slewAngle}
+                        viewMode="SIDE"
+                        weight={2.1}
+                        zoom={zoom}
+                        // 💡 3. 将映射后的角度传递给 CraneVisual 用于显示
+                        displayKnuckleAngle={displayKnuckleAngle} 
+                    />
+                    
+                    {/* Zoom Controls */}
+                    <div className="absolute right-4 bottom-4 flex flex-col gap-2">
+                        <div className="bg-white p-1 rounded-lg shadow-lg border border-gray-200 flex flex-col gap-1">
+                            <button onClick={handleZoomIn} className="p-2 hover:bg-emerald-50 text-slate-700 rounded transition-colors" title="Zoom In"><ZoomIn size={20}/></button>
+                            <button onClick={handleResetZoom} className="p-2 hover:bg-emerald-50 text-slate-700 rounded transition-colors" title="Reset"><Maximize size={20}/></button>
+                            <button onClick={handleZoomOut} className="p-2 hover:bg-emerald-50 text-slate-700 rounded transition-colors" title="Zoom Out"><ZoomOut size={20}/></button>
+                        </div>
+                        <div className="bg-black/50 text-white text-[10px] font-mono text-center py-1 rounded">
+                            {Math.round(zoom * 100)}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function AlarmHistoryView({ alarmHistory, setCurrentView, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     return (
-    <div className="bg-gray-200 h-full rounded flex flex-col text-gray-800 font-sans border-4 border-gray-400">
-          <div className="bg-gray-300 p-2 border-b border-gray-400 flex justify-between items-center px-4 select-none">
-              <span className="font-bold text-gray-700">{t.alarmWindow}</span>
-              <X className="text-gray-500 cursor-pointer hover:text-red-600" onClick={() => setCurrentView(ViewState.DASHBOARD)}/>
-          </div>
-          <div className="flex-1 overflow-auto bg-white p-1">
-              <table className="w-full text-xs border-collapse">
-                  <thead>
-                      <tr className="bg-gray-100 text-left border-b border-gray-300">
-                          <th className="p-2 border-r border-gray-300 font-bold text-gray-600">No.</th>
-                          <th className="p-2 border-r border-gray-300 font-bold text-gray-600">{t.time}</th>
-                          <th className="p-2 border-r border-gray-300 font-bold text-gray-600">{t.date}</th>
-                          <th className="p-2 border-r border-gray-300 font-bold text-gray-600">St...</th>
-                          <th className="p-2 border-r border-gray-300 font-bold text-gray-600">{t.text}</th>
-                          <th className="p-2 font-bold text-gray-600">{t.ackGroup}</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {alarmHistory.map((alarm: Alarm, i: number) => (
-                          <tr key={i} className="border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
-                              <td className="p-2 border-r border-gray-200 bg-gray-50 font-mono">{i+1}</td>
-                              <td className="p-2 border-r border-gray-200 font-mono">{alarm.timestamp.split(' ')[1]}</td>
-                              <td className="p-2 border-r border-gray-200 font-mono">{alarm.timestamp.split(' ')[0]}</td>
-                              <td className="p-2 border-r border-gray-200 text-center font-bold text-red-500">I</td>
-                              <td className="p-2 border-r border-gray-200 font-medium text-gray-800 uppercase">
-                                  {(t.alarms[alarm.code as keyof typeof t.alarms] || alarm.message).substring(0, 50)}...
-                              </td>
-                              <td className="p-2 text-gray-500">0</td>
-                          </tr>
-                      ))}
-                      {alarmHistory.length === 0 && (
-                          <tr><td colSpan={6} className="p-8 text-center text-gray-400">{t.noAlarms}</td></tr>
-                      )}
-                  </tbody>
-              </table>
-          </div>
-          <div className="bg-gray-200 p-2 flex justify-between border-t border-gray-300">
-              <button className="p-2 bg-gray-100 border border-gray-400 rounded shadow hover:bg-white"><ClipboardList size={20}/></button>
-              <button className="p-2 bg-gray-100 border border-gray-400 rounded shadow hover:bg-white"><Download size={20}/></button>
-          </div>
-      </div>
-    )
-};
+        <div className="h-full bg-gray-100 p-6 flex flex-col gap-4">
+            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                     <span className="w-2 h-8 bg-red-500 rounded-full"></span>
+                     {t.alarmWindow}
+                 </h2>
+                 <button onClick={() => setCurrentView(ViewState.LANDING)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">{t.back}</button>
+            </div>
+            
+            <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col">
+                 <div className="overflow-auto flex-1">
+                     <table className="w-full text-left">
+                         <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-xs border-b border-gray-200 sticky top-0">
+                             <tr>
+                                 <th className="p-4">{t.time}</th>
+                                 <th className="p-4">{t.alarmCode}</th>
+                                 <th className="p-4">{t.text}</th>
+                                 <th className="p-4">Type</th>
+                                 <th className="p-4">Status</th>
+                             </tr>
+                         </thead>
+                         <tbody className="divide-y divide-gray-100">
+                             {alarmHistory.map((alarm: Alarm, idx: number) => {
+                                 const msg = t.alarms[alarm.code as keyof typeof t.alarms] || alarm.message;
+                                 return (
+                                 <tr key={idx} className="hover:bg-red-50 transition-colors">
+                                     <td className="p-4 font-mono text-sm text-gray-500">{alarm.timestamp}</td>
+                                     <td className="p-4 font-bold text-slate-700 font-mono">{alarm.code}</td>
+                                     <td className="p-4 text-slate-600">{msg}</td>
+                                     <td className="p-4">
+                                         <span className={`px-2 py-1 rounded text-xs font-bold ${alarm.type === 'ALARM' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                             {alarm.type}
+                                         </span>
+                                     </td>
+                                     <td className="p-4 text-xs font-bold text-gray-400 uppercase">{alarm.active ? 'Active' : 'Resolved'}</td>
+                                 </tr>
+                             )})}
+                             {alarmHistory.length === 0 && (
+                                 <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">{t.noAlarms}</td></tr>
+                             )}
+                         </tbody>
+                     </table>
+                 </div>
+            </div>
+        </div>
+    );
+}
 
-const HelpView = ({ setCurrentView, language }: any) => {
+function HelpView({ setCurrentView, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-[#333] text-white relative">
-          <div className="bg-[#87CEEB] w-full py-4 text-center absolute top-20 border-y-4 border-blue-400">
-               <h2 className="text-2xl font-black text-yellow-300 uppercase tracking-[0.2em] drop-shadow-md">{t.contactDetails}</h2>
-          </div>
-          
-          <div className="bg-[#444] p-10 rounded-xl shadow-2xl border border-gray-500 w-full max-w-lg space-y-8 mt-20">
-              <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-[#333] rounded-lg border border-gray-500 flex items-center justify-center shadow-inner">
-                      <Phone className="text-white" size={32} />
-                  </div>
-                  <div>
-                      <div className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">TEL:</div>
-                      <div className="bg-white text-black font-bold px-4 py-2 rounded w-64 text-lg font-mono">+65 6565 6868</div>
-                  </div>
-              </div>
-              
-              <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-[#333] rounded-lg border border-gray-500 flex items-center justify-center shadow-inner">
-                      <Mail className="text-white" size={32} />
-                  </div>
-                  <div>
-                      <div className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Email:</div>
-                      <div className="bg-white text-black font-bold px-4 py-2 rounded w-64 text-sm">aftersales@ktsenergy.com</div>
-                  </div>
-              </div>
+        <div className="h-full bg-gray-100 p-6 flex items-center justify-center">
+             <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+                 <div className="bg-[#00509E] p-8 text-center text-white">
+                     <HelpCircle size={64} className="mx-auto mb-4 opacity-80"/>
+                     <h2 className="text-3xl font-bold">{t.help} & {t.onSiteService}</h2>
+                 </div>
+                 <div className="p-10 space-y-8">
+                     <div className="flex items-start gap-6">
+                         <div className="p-3 bg-blue-50 rounded-full text-[#00509E]"><MapPin size={24}/></div>
+                         <div>
+                             <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider mb-1">Address</h3>
+                             <p className="text-lg font-medium text-slate-800 whitespace-pre-line">{t.address}</p>
+                         </div>
+                     </div>
+                     <div className="flex items-start gap-6">
+                         <div className="p-3 bg-blue-50 rounded-full text-[#00509E]"><Phone size={24}/></div>
+                         <div>
+                             <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider mb-1">24/7 Hotline</h3>
+                             <p className="text-lg font-medium text-slate-800">+65 6580 7900</p>
+                         </div>
+                     </div>
+                     <div className="flex items-start gap-6">
+                         <div className="p-3 bg-blue-50 rounded-full text-[#00509E]"><Mail size={24}/></div>
+                         <div>
+                             <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider mb-1">Email Support</h3>
+                             <p className="text-lg font-medium text-slate-800">support@kts-energy.com</p>
+                         </div>
+                     </div>
+                 </div>
+                 <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
+                     <button onClick={() => setCurrentView(ViewState.LANDING)} className="px-8 py-3 bg-[#00509E] hover:bg-blue-800 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95">
+                         {t.back}
+                     </button>
+                 </div>
+             </div>
+        </div>
+    );
+}
 
-               <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-[#333] rounded-lg border border-gray-500 flex items-center justify-center shadow-inner">
-                      <MapPin className="text-white" size={32} />
-                  </div>
-                  <div>
-                      <div className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Address:</div>
-                      <div className="bg-white text-black font-bold px-4 py-2 rounded w-64 text-xs leading-tight whitespace-pre-line">
-                          {t.address}
-                      </div>
-                  </div>
-              </div>
-
-              <div className="flex justify-center mt-8">
-                <button className="bg-[#87CEEB] hover:bg-blue-300 text-slate-800 font-bold py-3 px-10 rounded shadow-lg uppercase tracking-wider flex items-center gap-2">
-                    <Wrench size={20}/> {t.onSiteService}
-                </button>
-              </div>
-          </div>
-          
-          <button 
-            onClick={() => setCurrentView(ViewState.DASHBOARD)} 
-            className="mt-12 bg-[#87CEEB] hover:bg-blue-300 text-slate-800 px-8 py-2 rounded font-bold"
-          >
-               {t.exit}
-          </button>
-      </div>
-    )
-};
-
-const SystemLayout = ({ children, title, currentView, setCurrentView, currentTime, data, setData, language, setLanguage }: any) => {
+function SystemLayout({ children, title, currentView, setCurrentView, currentTime, data, setData, language, setLanguage }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     return (
     <div className="flex flex-col h-screen bg-gray-900 overflow-hidden font-sans select-none">
@@ -1108,6 +1614,12 @@ const SystemLayout = ({ children, title, currentView, setCurrentView, currentTim
                 active={currentView === ViewState.ALARM_HISTORY} 
                 onClick={() => setCurrentView(ViewState.ALARM_HISTORY)} 
                 />
+                <SideButton 
+                label={t.statTodo} 
+                icon={CheckSquare} 
+                active={currentView === ViewState.TODO_LIST} 
+                onClick={() => setCurrentView(ViewState.TODO_LIST)} 
+                />
             </div>
             
             <div className="mb-2">
@@ -1123,11 +1635,11 @@ const SystemLayout = ({ children, title, currentView, setCurrentView, currentTim
       </div>
     </div>
   );
-};
+}
 
 // --- Main App Component ---
 
-const App: React.FC = () => {
+export default function App() {
   // --- Global State ---
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.LANDING);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleString('en-GB', DATE_OPTIONS));
@@ -1136,17 +1648,21 @@ const App: React.FC = () => {
   const [records, setRecords] = useState<MaintenanceEntry[]>(INITIAL_RECORDS);
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
   
+  const [activeControl, setActiveControl] = useState<string | null>(null);
+
   // Equipment Simulation State
   const [data, setData] = useState<EquipmentData>({
     oilTemp: 45.0,
     windSpeed: 12.5,
     liftingWeight: 2.06,
-    speed: 10.2,
+    speed: 0.0, // Initialize speed at 0
     mainAngle: 27.2,
     ropeLength: 2.8,
     workRadius: 9.6,
     model: '5T MODEL',
-    status: 'Running'
+    status: 'Running',
+    slewAngle: 0,
+    knuckleAngle: 45
   });
 
   // Parameters State
@@ -1155,6 +1671,74 @@ const App: React.FC = () => {
       warning90: 4.5,
       alarm110: 5.5
   });
+
+  const clearAlarm = useCallback(() => {
+      setActiveAlarm(null);
+  }, []);
+
+  // --- Loop for Continuous Control with Speed Logic ---
+  useEffect(() => {
+      let interval: number;
+      if (activeControl) {
+          interval = window.setInterval(() => {
+              setData(prev => {
+                  const newData = { ...prev };
+                  let speedVal = 0;
+
+                  switch(activeControl) {
+                      case 'HOIST_UP': 
+                          newData.ropeLength = Math.max(0, prev.ropeLength - 0.1); 
+                          speedVal = 15.0; 
+                          break;
+                      case 'HOIST_DOWN': 
+                          newData.ropeLength += 0.1; 
+                          speedVal = 15.0;
+                          break;
+                      case 'LUFF_UP': 
+                          // Updated limit to 50 per user request
+                          newData.mainAngle = Math.min(50, prev.mainAngle + 0.5); 
+                          speedVal = 0.5; // deg/s
+                          break;
+                      case 'LUFF_DOWN': 
+                          newData.mainAngle = Math.max(0, prev.mainAngle - 0.5); 
+                          speedVal = 0.5;
+                          break;
+                      case 'SLEW_CW': 
+                          newData.slewAngle = (prev.slewAngle + 1) % 360; 
+                          speedVal = 1.0; // deg/s
+                          break;
+                      case 'SLEW_CCW': 
+                          newData.slewAngle = (prev.slewAngle - 1 + 360) % 360; 
+                          speedVal = 1.0;
+                          break;
+                      case 'KNUCKLE_IN': 
+                          // Updated limit to 122 as per user request (Min 50, Max 122)
+                          newData.knuckleAngle = Math.min(43, prev.knuckleAngle + 1); 
+                          speedVal = 0.8;
+                          break;
+                      case 'KNUCKLE_OUT': 
+                          // Updated limit to 20 as per user request (Min 20, Max 122)
+                          newData.knuckleAngle = Math.max(-70, prev.knuckleAngle - 1); 
+                          speedVal = 0.8;
+                          break;
+                  }
+                  
+                  newData.speed = speedVal; 
+                  
+                  const rad1 = (newData.mainAngle * Math.PI) / 180;
+                  const rad2 = ((newData.mainAngle - newData.knuckleAngle) * Math.PI) / 180;
+                  const boom1Proj = 10 * Math.cos(rad1);
+                  const boom2Proj = 8 * Math.cos(rad2);
+                  newData.workRadius = Math.abs(boom1Proj + boom2Proj);
+                  
+                  return newData;
+              });
+          }, 30); 
+      } else {
+          setData(prev => ({ ...prev, speed: 0 }));
+      }
+      return () => clearInterval(interval);
+  }, [activeControl]);
 
   // --- Logic Effects ---
   useEffect(() => {
@@ -1209,23 +1793,9 @@ const App: React.FC = () => {
       });
   }, []);
 
-  // --- Actions ---
-  const handleControl = useCallback((action: string) => {
-      setData(prev => {
-          const newData = { ...prev };
-          switch(action) {
-              case 'HOIST_UP': newData.ropeLength = Math.max(0, prev.ropeLength - 0.5); break;
-              case 'HOIST_DOWN': newData.ropeLength += 0.5; break;
-              case 'LUFF_UP': newData.mainAngle = Math.min(85, prev.mainAngle + 2); break;
-              case 'LUFF_DOWN': newData.mainAngle = Math.max(0, prev.mainAngle - 2); break;
-              case 'SLEW_CW': /* Visual only */ break;
-              case 'SLEW_CCW': /* Visual only */ break;
-          }
-          // Recalculate radius roughly based on angle
-          newData.workRadius = Math.cos(newData.mainAngle * Math.PI / 180) * 12; // 12m boom
-          return newData;
-      });
-  }, []);
+  const handleControl = (action: string) => {
+      setActiveControl(action);
+  };
 
   const saveParameter = useCallback((newParams: SystemParameters) => {
       setParams(newParams);
@@ -1237,6 +1807,7 @@ const App: React.FC = () => {
       alert("Record Saved Successfully!");
       setCurrentView(ViewState.MAINTENANCE_RECORD);
   }, []);
+
 
   // --- Main Render Switch ---
   if (currentView === ViewState.LANDING) {
@@ -1250,7 +1821,6 @@ const App: React.FC = () => {
       );
   }
 
-  // Determine Title based on View
   const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
   let currentTitle = currentView.replace('_', ' ');
   if (currentView === ViewState.DASHBOARD) {
@@ -1265,14 +1835,14 @@ const App: React.FC = () => {
       currentTitle = t.remoteControl;
   } else if (currentView === ViewState.ALARM_HISTORY) {
       currentTitle = t.statAlarm;
+  } else if (currentView === ViewState.TODO_LIST) {
+      currentTitle = t.statTodo;
   } else if (currentView === ViewState.HELP) {
       currentTitle = t.help;
   }
 
-  // Resolve active alarm text
   const activeAlarmCode = activeAlarm ? activeAlarm.code : null;
   const activeAlarmMessage = activeAlarmCode ? (t.alarms[activeAlarmCode as keyof typeof t.alarms] || activeAlarm?.message) : '';
-  const activeAlarmType = activeAlarm ? activeAlarm.type : 'ALARM';
 
   return (
     <>
@@ -1287,15 +1857,15 @@ const App: React.FC = () => {
             setLanguage={setLanguage}
         >
             {currentView === ViewState.DASHBOARD && <DashboardView data={data} activeAlarm={activeAlarm} setActiveAlarm={setActiveAlarm} language={language} />}
-            {currentView === ViewState.REMOTE_CONTROL && <RemoteControlView data={data} params={params} activeAlarm={activeAlarm} handleControl={handleControl} setCurrentView={setCurrentView} language={language} />}
+            {currentView === ViewState.REMOTE_CONTROL && <RemoteControlView data={data} params={params} activeAlarm={activeAlarm} setActiveControl={setActiveControl} setCurrentView={setCurrentView} clearAlarm={clearAlarm} language={language} />}
             {currentView === ViewState.PARAMETER_SETTING && <ParameterView data={data} params={params} saveParameter={saveParameter} setCurrentView={setCurrentView} language={language} />}
-            {currentView === ViewState.MAINTENANCE_RECORD && <RecordView type="Maintenance" setCurrentView={setCurrentView} saveRecord={saveRecord} language={language} />}
-            {currentView === ViewState.REPAIR_RECORD && <RecordView type="Repair" setCurrentView={setCurrentView} saveRecord={saveRecord} language={language} />}
+            {currentView === ViewState.MAINTENANCE_RECORD && <RecordView type="Maintenance" setCurrentView={setCurrentView} saveRecord={saveRecord} language={language} records={records} />}
+            {currentView === ViewState.REPAIR_RECORD && <RecordView type="Repair" setCurrentView={setCurrentView} saveRecord={saveRecord} language={language} records={records} />}
             {currentView === ViewState.ALARM_HISTORY && <AlarmHistoryView alarmHistory={alarmHistory} setCurrentView={setCurrentView} language={language} />}
+            {currentView === ViewState.TODO_LIST && <ToDoView data={data} setCurrentView={setCurrentView} language={language} />}
             {currentView === ViewState.HELP && <HelpView setCurrentView={setCurrentView} language={language} />}
         </SystemLayout>
         
-        {/* Global Alarm Modal - Pass translated strings */}
         <AlarmModal 
             alarm={activeAlarm ? { ...activeAlarm, message: activeAlarmMessage } : null} 
             onClose={() => setActiveAlarm(null)}
@@ -1309,6 +1879,4 @@ const App: React.FC = () => {
         />
     </>
   );
-};
-
-export default App;
+}

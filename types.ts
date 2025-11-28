@@ -6,6 +6,7 @@ export enum ViewState {
   MAINTENANCE_RECORD = 'MAINTENANCE_RECORD',
   REPAIR_RECORD = 'REPAIR_RECORD',
   ALARM_HISTORY = 'ALARM_HISTORY',
+  TODO_LIST = 'TODO_LIST',
   HELP = 'HELP',
 }
 
@@ -27,6 +28,9 @@ export interface EquipmentData {
   workRadius: number;
   model: string;
   status: 'Running' | 'Idle' | 'Error';
+  // New fields for advanced control
+  slewAngle: number;
+  knuckleAngle: number;
 }
 
 export interface SystemParameters {
