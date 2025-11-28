@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
 
       // ⭐ GitHub Pages 必须添加 base，否则页面加载不了
       // 你的仓库名是：KTS-MONITOR
-      base: '/KTS-MONITOR/',
+      base: './',
 
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
@@ -28,3 +28,4 @@ export default defineConfig(({ mode }) => {
       }
     };
 });
+
