@@ -740,7 +740,7 @@ function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: an
                   </div>
               </div>
 
-              <div className="grid grid-cols-5 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                   {[
                       { val: 5, label: t.statAlarm, color: "bg-orange-500", text: "text-white", view: ViewState.ALARM_HISTORY },
                       { val: 2, label: t.statMaint, color: "bg-yellow-400", text: "text-slate-900", view: ViewState.MAINTENANCE_RECORD },
@@ -836,8 +836,8 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
 
 
     return (
-    <div className="grid grid-cols-12 gap-1 h-full bg-[#001F3F] p-2">
-      <div className="col-span-3 bg-[#002B55]/80 border border-slate-600 rounded-lg p-2 flex flex-col gap-2 shadow-inner">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 h-full bg-[#001F3F] p-2">
+      <div className="col-span-full lg:col-span-3 bg-[#002B55]/80 border border-slate-600 rounded-lg p-2 flex flex-col gap-2 shadow-inner">
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-[#0f172a] rounded p-2 border border-slate-700 shadow-lg relative">
              <div className="absolute top-1 left-2 text-[10px] text-gray-400 font-bold uppercase">{t.oilTemp}</div>
@@ -870,7 +870,7 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
         </div>
       </div>
 
-      <div className="col-span-9 flex flex-col gap-2 h-full overflow-hidden">
+      <div className="col-span-full lg:col-span-9 flex flex-col gap-2 h-full overflow-hidden">
            <div className="flex-[3] min-h-0 bg-black rounded-lg border border-slate-600 relative overflow-hidden group">
              <CraneVisual 
                  angle={data.mainAngle} 
@@ -939,6 +939,22 @@ function RemoteControlView({ data, params, activeAlarm, setActiveControl, clearA
         },
         onMouseUp: () => setActiveControl(null),
         onMouseLeave: () => setActiveControl(null),
+		// ===================================
+    // 关键修复 1: 增加触控事件支持
+    // ===================================
+    onTouchStart: (e: React.TouchEvent) => {
+        // 阻止默认行为（如移动端缩放或滚动），确保操作专一性
+        e.preventDefault(); 
+        setActiveControl(action);
+        if (['SLEW_CCW', 'SLEW_CW'].includes(action)) { 
+            setViewMode('TOP'); 
+        } else { 
+            setViewMode('SIDE'); 
+        } 
+    },
+    onTouchEnd: () => setActiveControl(null),
+    onTouchCancel: () => setActiveControl(null), // 触控中断时停止操作
+    // ===================================
         className: "absolute z-20 cursor-pointer active:bg-white/20 transition-colors"
     });
 
@@ -1025,7 +1041,7 @@ function RemoteControlView({ data, params, activeAlarm, setActiveControl, clearA
             <div className="w-full max-w-4xl grid grid-cols-3 gap-12">
                 
                 <div className="flex flex-col items-center">
-                    <div className="relative w-40 h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                    <div className="relative w-32 h-32 md:w-40 md:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
                         <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingDw}</span>
                         <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingUp}</span>
                         <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCcw}</span>
@@ -1071,7 +1087,7 @@ function RemoteControlView({ data, params, activeAlarm, setActiveControl, clearA
                 </div>
 
                 <div className="flex flex-col items-center">
-                    <div className="relative w-40 h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                    <div className="relative w-32 h-32 md:w-40 md:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
                         <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingDw}</span>
                         <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingUp}</span>
                         <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleIn}</span>
@@ -1110,7 +1126,7 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
                      <div className="p-12 space-y-8 bg-[#333]">
                           <div className="flex items-center justify-center gap-6">
                               <label className="text-white font-bold w-48 text-right">{t.liftingWeight}:</label>
-                              <div className="bg-white text-black font-bold px-4 py-2 w-32 text-center border-2 border-gray-400">{data.liftingWeight.toFixed(1)} T</div>
+                              <div className="bg-white text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-gray-400">{data.liftingWeight.toFixed(1)} T</div>
                           </div>
 
                           <div className="h-px bg-gray-600 w-3/4 mx-auto"></div>
@@ -1119,7 +1135,7 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
                               <label className="text-white font-bold w-48 text-right">{t.liftingWeightLimit}:</label>
                               <input 
                                 type="number" 
-                                className="bg-yellow-400 text-black font-bold px-4 py-2 w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="bg-yellow-400 text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={localParams.liftingWeightLimit}
                                 onChange={(e) => setLocalParams({...localParams, liftingWeightLimit: parseFloat(e.target.value)})}
                               />
@@ -1130,7 +1146,7 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
                               <label className="text-white font-bold w-48 text-right">{t.warning90}:</label>
                               <input 
                                 type="number" 
-                                className="bg-yellow-400 text-black font-bold px-4 py-2 w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="bg-yellow-400 text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={localParams.warning90}
                                 onChange={(e) => setLocalParams({...localParams, warning90: parseFloat(e.target.value)})}
                               />
@@ -1168,7 +1184,7 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
              <div className="bg-[#87CEEB] p-4 text-center border-b border-blue-300">
                 <h3 className="text-xl text-slate-800 font-bold uppercase tracking-wider">{t.paramSelector}</h3>
              </div>
-             <div className="p-10 grid grid-cols-2 gap-8">
+             <div className="p-10 grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {[t.liftingWeight, t.speed, t.workAngle, t.statAlarm, t.hoist, t.knuckle, t.slew, t.luffing].map((item, idx) => (
                     <button 
                         key={idx}
@@ -1553,7 +1569,7 @@ function SystemLayout({ children, title, currentView, setCurrentView, currentTim
       <div className="flex flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
         
         {/* Main Content Area */}
-        <main className="flex-1 p-2 mr-[200px] relative flex flex-col h-full overflow-hidden">
+        <main className="flex-1 p-2 md:mr-[200px] relative flex flex-col h-full overflow-hidden">
             {/* Top Bar for View Title */}
             <div className="bg-gradient-to-r from-[#00A8E8]/80 to-transparent text-white px-4 py-2 mb-2 rounded-l border-l-4 border-white shadow-lg flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-2">
