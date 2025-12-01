@@ -5,7 +5,7 @@ import {
   LayoutGrid, Wrench, Save, Download, Phone, Mail, MapPin, Search, X,
   User, Database, PenTool, Layout, Globe, LogOut,
   ZoomIn, ZoomOut, Maximize, CheckSquare, Menu 
-} from 'lucide-react'; // 注意这里添加了 Menu
+} from 'lucide-react';
 import { Gauge } from './components/Gauge';
 import { AlarmModal } from './components/AlarmModal';
 import { ViewState, Alarm, EquipmentData, SystemParameters, MaintenanceEntry } from './types';
@@ -301,22 +301,9 @@ function CraneVisual({
     weight = 0, 
     speed = 0,
     zoom = 1,
-    // 💡 1. 接收来自 RemoteControlView 的映射后角度
     displayKnuckleAngle 
-}: { 
-    angle: number, 
-    ropeLength: number, 
-    activeAlarm: boolean, 
-    knuckleAngle?: number, 
-    slewAngle?: number,
-    viewMode?: 'SIDE' | 'TOP',
-    weight?: number,
-    speed?: number,
-    zoom?: number,
-    // 💡 2. 添加 displayKnuckleAngle 的类型定义
-    displayKnuckleAngle?: number 
-}) {
-    // --- 调试开关：设置为 true 会显示红点、绿点、蓝点，用于校准 ---
+}: any) {
+    // --- 调试开关 ---
     const DEBUG_MODE = false; 
 
     // Calculate ViewBox based on zoom
@@ -326,104 +313,58 @@ function CraneVisual({
     const vbY = (200 - vbH) / 2;
     const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
-    // 💡 3. 定义最终用于显示的角度值
     const angleToDisplay = displayKnuckleAngle !== undefined 
         ? displayKnuckleAngle 
         : knuckleAngle;
 
-    // ==================================================================================
-    // --- TOP VIEW 逻辑 (已添加旋转) ---
-    // ==================================================================================
     if (viewMode === 'TOP') {
-        // 假设 TOP 视图的旋转中心位于 SVG 视图的中央 (150, 100)
         const topPivotX = 150;
         const topPivotY = 100;
-        // 假设 TOP 视图图片尺寸为 300x200 (与 SVG 视图一致，便于居中)
         const topImgWidth = 300; 
         const topImgHeight = 200; 
-        // ====== 新增魔法参数：图片偏移量 ======
-        const imageOffsetX = 120; // 正值：图片向右移动。负值：图片向左移动。
-        const imageOffsetY = -5;  // 正值：图片向下移动。负值：图片向上移动。
+        const imageOffsetX = 120;
+        const imageOffsetY = -5;
         return (
              <div className="w-full h-full bg-slate-900 relative overflow-hidden border border-slate-600 rounded">
                  <div className="absolute top-2 right-2 text-white text-xs font-bold drop-shadow opacity-50">TOP VIEW</div>
                  <svg width="100%" height="100%" viewBox={viewBox} className="transition-all duration-300 ease-out">
                      <rect x="-1000" y="-1000" width="4000" height="4000" fill="#0f172a" />
-                     
-                     {/* Top View Crane Image with Slew Rotation */}
                      <g transform={`translate(${topPivotX}, ${topPivotY}) rotate(${slewAngle})`}>
                          <image 
-                             href={IMAGE_PATHS.TOP_VIEW_CRANE} // 假设 IMAGE_PATHS 已定义
+                             href={IMAGE_PATHS.TOP_VIEW_CRANE}
                              x={-topImgWidth / 2 + imageOffsetX} 
                              y={-topImgHeight / 2 + imageOffsetY}
                              width={topImgWidth} 
                              height={topImgHeight} 
                          />
                      </g>
-                     
-                     {/* 调试模式下的旋转中心点 */}
-                     {DEBUG_MODE && (
-                         <circle cx={topPivotX} cy={topPivotY} r={3} fill="yellow" stroke="white" strokeWidth={0.5}/>
-                     )}
                  </svg>
              </div>
         );
     }
 
-    // ==================================================================================
-    // --- 侧视图：魔法参数区 (您的校准参数保持不变) ---
-    // ==================================================================================
-
-    // 【魔法参数 A】：控制红点 (Main Pivot) 的世界坐标。
     const pivotWorldX = 60;    
     const pivotWorldY = 103;   
-
-    // 【魔法参数 B】：绿点的高度补偿 (修正主臂图片固有倾斜)。
     const mainBoomMathOffsetAngle = 1; 
-
-    // 【魔法参数 C】：主臂的"视觉长度" (红点到绿点的距离)。
     const visualMainBoomLength = 182; 
-    
-    // **********************************************
-    // --- 新增蓝点校准参数 (您的校准值保持不变) ---
-    // **********************************************
-    
-    // 【魔法参数 D】：折臂的"视觉长度" (绿点到蓝点的距离)。
     const visualKnuckleBoomLength = -130; 
-
-    // 【魔法参数 E】：蓝点的高度补偿 (修正折臂图片固有倾斜)。
     const knuckleBoomMathOffsetAngle = 55; 
 
-    // --- 原始图片定位参数 (保持不变，用于绘制图片) ---
     const mbImgOffsetX = 60; const mbImgOffsetY = 217; 
     const kbImgOffsetX = 233; const kbImgOffsetY = 150; 
     const initialBoomOffsetAngle = 20; 
     const initialKnuckleOffsetAngle = 92;
 
-    // --- 运动学计算 (Kinematics) ---
-
-    // 1. 主臂角度计算
     const radMain = ((angle + mainBoomMathOffsetAngle) * Math.PI) / 180;
-    
-    // 2. 计算点2 (Joint - 绿点) 的位置
     const jointX = pivotWorldX + visualMainBoomLength * Math.cos(radMain);
     const jointY = pivotWorldY - visualMainBoomLength * Math.sin(radMain);
 
-    // 3. 折臂角度和尖端 (Tip - 蓝点) 计算
-    // 注意：这里仍然使用原始的 knuckleAngle (动画值)
     const radKnuckle = ((angle - knuckleAngle + mainBoomMathOffsetAngle + knuckleBoomMathOffsetAngle) * Math.PI) / 180;
-    
-    // 使用新的可调长度 D
     const tipX = jointX + visualKnuckleBoomLength * Math.cos(radKnuckle);
     const tipY = jointY - visualKnuckleBoomLength * Math.sin(radKnuckle);
 
-    // 统一液压缸使用的折臂长度
-    const knuckleBoomLen = visualKnuckleBoomLength; 
-
-    // --- 液压缸和辅助组件 (保持不变) ---
     const pivotX = 60; const pivotY = 90; 
     const groundY = 170; 
-    const rot = (len: number, r: number) => ({ x: len * Math.cos(r), y: -len * Math.sin(r) });
     const getPointOnBoom = (originX: number, originY: number, rad: number, dist: number, offset: number) => {
              const cos = Math.cos(rad); const sin = Math.sin(rad);
              return { x: originX + dist * cos + offset * Math.sin(rad), y: originY - dist * sin + offset * Math.cos(rad) };
@@ -431,9 +372,8 @@ function CraneVisual({
     const mcBase = { x: pivotX + 10, y: pivotY + 43 }; 
     const mcAttach = getPointOnBoom(pivotWorldX, pivotWorldY, radMain, 64, 10);
     const kcBase = getPointOnBoom(pivotWorldX, pivotWorldY, radMain, 106, 10);
-    // kcAttach 使用 radKnuckle
     const kcAttach = getPointOnBoom(jointX, jointY, radKnuckle, -22, 6); 
-    const ropeDrop = 10 + (ropeLength * 8); // 保持您的修改
+    const ropeDrop = 10 + (ropeLength * 8);
 
     const Cylinder = ({ start, end, thickness = 8, isBlack = true, fixedLen }: any) => {
          const dx = end.x - start.x; const dy = end.y - start.y;
@@ -450,7 +390,6 @@ function CraneVisual({
          )
     }
     
-    // 图片尺寸配置 (保持你原来的)
     const mbImgWidth = 400; const mbImgHeight = 400;
     const kbImgWidth = 400; const kbImgHeight = 400;
     const pBaseWidth = 400; const pBaseHeight = 400;
@@ -462,7 +401,6 @@ function CraneVisual({
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
              <svg width="100%" height="100%" viewBox={viewBox} className="transition-all duration-300 ease-out">
-                 {/* ... Defs ... */}
                  <defs>
                     <filter id="dropshadow" height="130%">
                       <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/> 
@@ -472,38 +410,17 @@ function CraneVisual({
                     </filter>
                  </defs>
 
-                 {/* Ground */}
                  <rect x="-1000" y={groundY} width="4000" height="1000" fill="#cbd5e1" />
                  <line x1="-1000" y1={groundY} x2="3000" y2={groundY} stroke="#94a3b8" strokeWidth="2"/>
                  
-                 {/* 液压缸 */}
                  <Cylinder start={mcBase} end={mcAttach} thickness={7} isBlack={true} fixedLen={55} />
                  <Cylinder start={kcBase} end={kcAttach} thickness={6} isBlack={true} fixedLen={55} />
                  
-                 {/* 基座图片 */}
                  <g transform={`translate(${pivotX}, ${pivotY})`}>
-                     <image href={IMAGE_PATHS.PEDESTAL_BASE} x={-pBaseOffsetX} y={-pBaseOffsetY} width={pBaseWidth} height={pBaseHeight} /> {/* 假设 IMAGE_PATHS 已定义 */}
+                     <image href={IMAGE_PATHS.PEDESTAL_BASE} x={-pBaseOffsetX} y={-pBaseOffsetY} width={pBaseWidth} height={pBaseHeight} />
                  </g>
-
-                 {/* ================= DEBUG 骨骼层 (点和线) ================= */}
-                 {DEBUG_MODE && (
-                     <g>
-                         {/* 红点 (主臂旋转中心) */}
-                         <circle cx={pivotWorldX} cy={pivotWorldY} r={3} fill="red" stroke="white" strokeWidth={0.5}/>
-                         {/* 绿点 (主臂尖端/折臂根部) */}
-                         <circle cx={jointX} cy={jointY} r={3} fill="#00ff00" stroke="white" strokeWidth={0.5}/>
-                         {/* 蓝点 (折臂尖端) */}
-                         <circle cx={tipX} cy={tipY} r={3} fill="blue" stroke="white" strokeWidth={0.5}/>
-                         {/* 骨骼连线 (红点 -> 绿点) */}
-                         <line x1={pivotWorldX} y1={pivotWorldY} x2={jointX} y2={jointY} stroke="red" strokeWidth="1" strokeDasharray="2 2" />
-                         {/* 骨骼连线 (绿点 -> 蓝点) */}
-                         <line x1={jointX} y1={jointY} x2={tipX} y2={tipY} stroke="blue" strokeWidth="1" strokeDasharray="2 2" />
-                     </g>
-                 )}
                  
-                 {/* ================= KNUCKLE BOOM (折臂图片) ================= */}
-                 {/* 注意：这里的旋转角度仍然使用原始的 knuckleAngle 进行计算 */}
-                 <g transform={`translate(${jointX}, ${jointY}) rotate(${-(angle - knuckleAngle) + initialKnuckleOffsetAngle})`} filter="url(#dropshadow)">
+                 <g transform={`translate(${jointX}, ${jointY}) rotate(${-(angle - knuckleAngle) + initialKnuckleOffsetAngle})` } filter="url(#dropshadow)">
                      <image 
                          href={IMAGE_PATHS.KNUCKLE_BOOM}
                          x={-kbImgOffsetX} 
@@ -513,7 +430,6 @@ function CraneVisual({
                      />
                  </g>
                  
-                 {/* ================= MAIN BOOM (主臂图片) ================= */}
                  <g transform={`translate(${pivotWorldX}, ${pivotWorldY}) rotate(${-angle + initialBoomOffsetAngle})`} filter="url(#dropshadow)">
                      <image 
                          href={IMAGE_PATHS.MAIN_BOOM}
@@ -524,20 +440,11 @@ function CraneVisual({
                      />
                  </g>
 
-                 {/* 钢丝绳、吊钩和负载 */}
-                 <line x1={tipX} y1={tipY} x2={tipX} y2={tipY + ropeDrop} stroke="#1f2937" strokeWidth="1" />
-                 <g transform={`translate(${tipX}, ${tipY + ropeDrop})`}>
-                     <rect x="-6" y="-10" width="12" height="14" rx="2" fill="#facc15" stroke="#ca8a04" />
-                     <path d="M0,4 L0,10 C0,14 5,14 5,10" fill="none" stroke="#ca8a04" strokeWidth="2.5" />
-                     <rect x="-10" y="14" width="20" height="20" fill={activeAlarm ? "#ef4444" : "#cbd5e1"} stroke="#64748b" strokeWidth="1" />
-                     <text x="0" y="26" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#1e293b">{weight?.toFixed(1)}T</text>
-                 </g>
+                 <g transform={`translate(${tipX}, ${tipY})`} style={{ willChange: 'transform' }}> <line x1="0" y1="0" x2="0" y2={ropeDrop} stroke="#1f2937" strokeWidth="1" /> <g transform={`translate(0, ${ropeDrop})`}> <rect x="-6" y="-10" width="12" height="14" rx="2" fill="#facc15" stroke="#ca8a04" /> <path d="M0,4 L0,10 C0,14 5,14 5,10" fill="none" stroke="#ca8a04" strokeWidth="2.5" /> <rect x="-10" y="14" width="20" height="20" fill={activeAlarm ? "#ef4444" : "#cbd5e1"} stroke="#64748b" strokeWidth="1" /> <text x="0" y="26" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#1e293b">{weight?.toFixed(1)}T</text> </g> </g>
                  
-                 {/* 状态信息框 */}
                  <g transform="translate(10, 10)">
                      <rect width="90" height="50" rx="4" fill="rgba(255,255,255,0.9)" stroke="#e2e8f0" />
                      <text x="8" y="15" fontSize="8" fontWeight="bold" fill="#334155">MAIN ∠: {angle.toFixed(1)}°</text>
-                     {/* 💡 4. 使用映射后的角度进行显示 */}
                      <text x="8" y="27" fontSize="8" fontWeight="bold" fill="#334155">KNUCKLE: {angleToDisplay.toFixed(1)}°</text>
                      <text x="8" y="39" fontSize="8" fontWeight="bold" fill="#334155">RADIUS: {ropeLength.toFixed(1)}m</text>
                  </g>
@@ -587,25 +494,32 @@ function Header({ onNavigateHome, currentTime, language, setLanguage, onToggleMe
     return (
     <header className="bg-[#001F3F] text-white h-16 flex items-center justify-between px-4 border-b-4 border-[#00A8E8] shadow-xl shrink-0 z-50 sticky top-0">
       <div className="flex items-center gap-3">
-        {/* 手机端菜单按钮 */}
+        {/* 左侧：手机菜单按钮 */}
         <button onClick={onToggleMenu} className="md:hidden p-2 hover:bg-white/10 rounded text-white">
             <Menu size={24} />
         </button>
         
-        <button onClick={onNavigateHome} className="hover:bg-white/10 p-2 rounded transition-colors hidden md:block">
+        {/* 快速返回主页按钮：现在手机端也显示，不再 hidden */}
+        <button
+            onClick={onNavigateHome}
+            className="hover:bg:white/10 hover:bg-white/10 p-2 rounded transition-colors"
+        >
             <Home size={26} className="text-[#00A8E8]" />
         </button>
+
         <div className="scale-90 origin-left">
              <KTSLogo color="text-white" />
         </div>
       </div>
 
+      {/* 中间标题：大屏显示 */}
       <div className="absolute left-1/2 transform -translate-x-1/2 bg-[#001F3F] px-8 py-1 rounded-b-xl border-b border-l border-r border-gray-700 shadow-lg hidden lg:block">
          <span className="text-lg font-bold text-gray-200 tracking-wider">
              {t.systemTitle}
          </span>
       </div>
 
+      {/* 右侧时间 + 语言选择 */}
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="text-sm font-mono text-[#00A8E8] bg-black/30 px-2 sm:px-3 py-1 rounded border border-gray-700 shadow-inner min-w-[80px] sm:min-w-[160px] text-center text-xs sm:text-sm">
             {currentTime}
@@ -627,10 +541,16 @@ function Header({ onNavigateHome, currentTime, language, setLanguage, onToggleMe
             
             {showLangMenu && (
                 <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded shadow-xl border border-gray-200 z-50 overflow-hidden">
-                    <button onClick={() => { setLanguage('zh'); setShowLangMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2 text-slate-800">
+                    <button
+                        onClick={() => { setLanguage('zh'); setShowLangMenu(false); }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2 text-slate-800"
+                    >
                         <img src="https://flagcdn.com/w20/cn.png" alt="CN"/> 中文
                     </button>
-                    <button onClick={() => { setLanguage('en'); setShowLangMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2 text-slate-800">
+                    <button
+                        onClick={() => { setLanguage('en'); setShowLangMenu(false); }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2 text-slate-800"
+                    >
                         <img src="https://flagcdn.com/w20/gb.png" alt="EN"/> English
                     </button>
                 </div>
@@ -640,6 +560,7 @@ function Header({ onNavigateHome, currentTime, language, setLanguage, onToggleMe
     </header>
   );
 }
+
 
 function SideButton({ label, icon: Icon, onClick, active, colorClass = "from-[#002B55] to-slate-800" }: any) {
     return (
@@ -665,13 +586,15 @@ function SideButton({ label, icon: Icon, onClick, active, colorClass = "from-[#0
     );
 }
 
+// --- Views ---
+
 function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: any) {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
 
     return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-100 font-sans text-slate-800 overflow-hidden">
-       {/* 电脑端左侧边栏 - 手机隐藏 */}
+       {/* Sidebar: Desktop Only */}
        <div className="hidden md:flex w-20 bg-white border-r border-gray-200 flex-col items-center py-6 gap-8 shadow-sm z-10 relative">
            <div className="scale-75 origin-center"><KTSLogo /></div>
            
@@ -714,7 +637,7 @@ function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: an
            </div>
        </div>
 
-       {/* 手机端头部 */}
+       {/* Mobile Header */}
        <div className="md:hidden bg-white p-3 flex justify-between items-center shadow-sm z-20">
            <div className="scale-75 origin-left"><KTSLogo /></div>
            <button onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')} className="p-1">
@@ -722,7 +645,6 @@ function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: an
            </button>
        </div>
 
-       {/* 主内容区域 */}
        <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-4 md:p-6 pb-20 md:pb-6">
           <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
               
@@ -757,7 +679,6 @@ function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: an
                   </div>
               </div>
 
-              {/* 统计卡片：手机端 2 列，电脑端 5 列 */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
                   {[
                       { val: 5, label: t.statAlarm, color: "bg-orange-500", text: "text-white", view: ViewState.ALARM_HISTORY },
@@ -820,7 +741,7 @@ function LandingView({ setCurrentView, alarmHistory, language, setLanguage }: an
           </div>
        </div>
         
-       {/* 手机端底部导航栏 */}
+       {/* Mobile Bottom Navigation */}
        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-2 z-50 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
            <button onClick={() => setCurrentView(ViewState.DASHBOARD)} className="flex flex-col items-center p-2 text-[#00509E]">
                <LayoutGrid size={24} />
@@ -857,9 +778,10 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
     const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
 
     return (
-    // 关键修改：允许滚动 (h-auto md:h-full)
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-auto md:h-full bg-[#001F3F] p-2 overflow-y-auto">
-      {/* 左侧面板：手机上自适应高度 */}
+    // FIX: Removed h-full, added overflow-y-auto to allow scrolling on mobile
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 bg-[#001F3F] p-2 overflow-y-auto h-full">
+      
+      {/* Left Panel */}
       <div className="col-span-full lg:col-span-3 bg-[#002B55]/80 border border-slate-600 rounded-lg p-2 flex flex-col gap-2 shadow-inner shrink-0">
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-[#0f172a] rounded p-2 border border-slate-700 shadow-lg relative aspect-square lg:aspect-auto lg:h-32 flex items-center justify-center">
@@ -872,7 +794,7 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
           </div>
         </div>
 
-        <div className="flex-1 bg-[#0f172a] rounded border border-slate-700 p-1 overflow-auto max-h-[300px] lg:max-h-none">
+        <div className="bg-[#0f172a] rounded border border-slate-700 p-1 overflow-auto max-h-[300px] lg:max-h-none">
            <table className="w-full text-xs text-left border-collapse">
              <tbody>
                {[
@@ -893,9 +815,9 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
         </div>
       </div>
 
-      {/* 右侧可视化：手机上垂直堆叠，指定高度 */}
-      <div className="col-span-full lg:col-span-9 flex flex-col gap-2 h-auto md:h-full min-h-[500px] md:min-h-0">
-           <div className="w-full h-[350px] md:h-auto md:flex-[3] min-h-0 bg-black rounded-lg border border-slate-600 relative overflow-hidden group shrink-0">
+      {/* Right Visuals: Vertical stack on mobile, flexible height */}
+      <div className="col-span-full lg:col-span-9 flex flex-col gap-2 min-h-0">
+           <div className="w-full h-[350px] md:h-auto md:flex-[3] min-h-[300px] bg-black rounded-lg border border-slate-600 relative overflow-hidden group shrink-0">
              <CraneVisual 
                  angle={data.mainAngle} 
                  ropeLength={data.ropeLength} 
@@ -909,7 +831,7 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
              />
            </div>
            
-           <div className="w-full h-[200px] md:h-auto md:flex-[2] min-h-0 bg-black rounded-lg border border-slate-600 relative overflow-hidden shrink-0">
+           <div className="w-full h-[200px] md:h-auto md:flex-[2] min-h-[200px] bg-black rounded-lg border border-slate-600 relative overflow-hidden shrink-0">
               <MapVisual /> 
            </div>
       </div>
@@ -918,166 +840,166 @@ function DashboardView({ data, activeAlarm, setActiveAlarm, language }: any) {
 }
 
 function RemoteControlView({ data, params, activeAlarm, setActiveControl, clearAlarm, language }: any) {
-    const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
-    const alarmMsg = activeAlarm ? (t.alarms[activeAlarm.code as keyof typeof t.alarms] || activeAlarm.message) : "";
-    const [viewMode, setViewMode] = useState<'SIDE' | 'TOP'>('SIDE');
-    const [zoom, setZoom] = useState(1);
+    const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
+    const alarmMsg = activeAlarm ? (t.alarms[activeAlarm.code as keyof typeof t.alarms] || activeAlarm.message) : "";
+    const [viewMode, setViewMode] = useState<'SIDE' | 'TOP'>('SIDE');
+    const [zoom, setZoom] = useState(1);
 
-    const mapKnuckleAngle = (knuckleAngle: number) => {
-        const inMin = -70;   
-        const inMax = 43;    
-        const outMin = 150;  
-        const outMax = 30;   
-        const inputRange = inMax - inMin; 
-        const outputRange = outMax - outMin; 
-        if (inputRange === 0) return outMin;
-        const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
-        return Math.min(Math.max(mappedAngle, outMax), outMin); 
-    };
+    const mapKnuckleAngle = (knuckleAngle: number) => {
+        const inMin = -70;   
+        const inMax = 43;    
+        const outMin = 150;  
+        const outMax = 30;   
+        const inputRange = inMax - inMin; 
+        const outputRange = outMax - outMin; 
+        if (inputRange === 0) return outMin;
+        const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
+        return Math.min(Math.max(mappedAngle, outMax), outMin); 
+    };
 
-    const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
-    
-    const btnProps = (action: string) => ({
-        onMouseDown: () => {
-            setActiveControl(action);
-            if (['SLEW_CCW', 'SLEW_CW'].includes(action)) { setViewMode('TOP'); } else { setViewMode('SIDE'); }
-        },
-        onMouseUp: () => setActiveControl(null),
-        onMouseLeave: () => setActiveControl(null),
-        onTouchStart: (e: React.TouchEvent) => {
-            e.preventDefault(); 
-            setActiveControl(action);
-            if (['SLEW_CCW', 'SLEW_CW'].includes(action)) { setViewMode('TOP'); } else { setViewMode('SIDE'); } 
-        },
-        onTouchEnd: () => setActiveControl(null),
-        onTouchCancel: () => setActiveControl(null),
-        className: "absolute z-20 cursor-pointer active:bg-white/20 transition-colors"
-    });
+    const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
+    
+    const btnProps = (action: string) => ({
+        onMouseDown: () => {
+            setActiveControl(action);
+            if (['SLEW_CCW', 'SLEW_CW'].includes(action)) { setViewMode('TOP'); } else { setViewMode('SIDE'); }
+        },
+        onMouseUp: () => setActiveControl(null),
+        onMouseLeave: () => setActiveControl(null),
+        onTouchStart: (e: React.TouchEvent) => {
+            e.preventDefault(); 
+            setActiveControl(action);
+            if (['SLEW_CCW', 'SLEW_CW'].includes(action)) { setViewMode('TOP'); } else { setViewMode('SIDE'); } 
+        },
+        onTouchEnd: () => setActiveControl(null),
+        onTouchCancel: () => setActiveControl(null),
+        className: "absolute z-20 cursor-pointer active:bg-white/20 transition-colors"
+    });
 
-    const handleZoomIn = () => setZoom(prev => Math.min(2, prev + 0.1));
-    const handleZoomOut = () => setZoom(prev => Math.max(0.5, prev - 0.1));
-    const handleResetZoom = () => setZoom(1);
+    const handleZoomIn = () => setZoom(prev => Math.min(2, prev + 0.1));
+    const handleZoomOut = () => setZoom(prev => Math.max(0.5, prev - 0.1));
+    const handleResetZoom = () => setZoom(1);
 
-    return (
-    // 修改为 min-h-full 并允许滚动，适应手机长页面
-    <div className="h-full flex flex-col bg-gray-300 p-2 sm:p-4 rounded relative overflow-hidden overflow-y-auto">
-        <div className="bg-white p-2 flex justify-between items-center border-b border-gray-400 mb-2 sm:mb-4 rounded shadow-sm shrink-0">
-            <div className="flex items-center gap-2 sm:gap-4">
-               <div className="scale-75 origin-left sm:scale-100"><KTSLogo /></div>
-               <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
-               <div className="font-mono font-bold text-xs sm:text-lg">{new Date().toLocaleString()}</div>
-            </div>
-            <button 
-                className="bg-gray-700 text-white px-2 py-1 text-xs rounded uppercase font-bold hover:bg-gray-800 active:scale-95 transition-transform"
-                onClick={clearAlarm}
-            >
-                {t.clear}
-            </button>
-        </div>
+    return (
+    // FIX: 移除 overflow-hidden，保留 overflow-y-auto 确保手机横屏可滚动
+    <div className="flex flex-col bg-gray-300 p-2 sm:p-4 rounded relative overflow-y-auto h-full">
+        <div className="bg-white p-2 flex justify-between items-center border-b border-gray-400 mb-2 sm:mb-4 rounded shadow-sm shrink-0">
+            <div className="flex items-center gap-2 sm:gap-4">
+               <div className="scale-75 origin-left sm:scale-100"><KTSLogo /></div>
+               <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+               <div className="font-mono font-bold text-xs sm:text-lg">{new Date().toLocaleString()}</div>
+            </div>
+            <button 
+                className="bg-gray-700 text-white px-2 py-1 text-xs rounded uppercase font-bold hover:bg-gray-800 active:scale-95 transition-transform"
+                onClick={clearAlarm}
+            >
+                {t.clear}
+            </button>
+        </div>
 
-        {/* 视图区域：手机上固定高度，电脑上自适应 */}
-        <div className="h-[250px] sm:h-auto sm:flex-1 bg-gradient-to-b from-gray-200 to-gray-300 border border-gray-400 p-2 sm:p-4 rounded-lg mb-2 sm:mb-4 flex justify-between items-center shadow-inner min-h-0 relative shrink-0">
-            <div className="flex-1 h-full mx-0 sm:mx-4 bg-white/50 rounded border border-gray-300 flex items-center justify-center overflow-hidden relative">
-                <CraneVisual 
-                    angle={data.mainAngle} 
-                    ropeLength={data.ropeLength} 
-                    activeAlarm={!!activeAlarm} 
-                    knuckleAngle={data.knuckleAngle} 
-                    slewAngle={data.slewAngle}
-                    viewMode={viewMode}
-                    weight={data.liftingWeight}
-                    speed={data.speed}
-                    zoom={zoom}
-                    displayKnuckleAngle={displayKnuckleAngle} 
-                />
+        {/* Visual Display: 🚀 移除固定高度 h-[250px]，改用 min-h-[180px] 确保吊机可见性 */}
+        <div className="min-h-[180px] sm:h-auto sm:flex-1 bg-gradient-to-b from-gray-200 to-gray-300 border border-gray-400 p-2 sm:p-4 rounded-lg mb-2 sm:mb-4 flex justify-between items-center shadow-inner min-h-0 relative shrink-0">
+            <div className="flex-1 h-full mx-0 sm:mx-4 bg-white/50 rounded border border-gray-300 flex items-center justify-center overflow-hidden relative">
+                <CraneVisual 
+                    angle={data.mainAngle} 
+                    ropeLength={data.ropeLength} 
+                    activeAlarm={!!activeAlarm} 
+                    knuckleAngle={data.knuckleAngle} 
+                    slewAngle={data.slewAngle}
+                    viewMode={viewMode}
+                    weight={data.liftingWeight}
+                    speed={data.speed}
+                    zoom={zoom}
+                    displayKnuckleAngle={displayKnuckleAngle} 
+                />
 
-                <div className="absolute right-2 top-2 sm:right-4 sm:top-4 flex flex-col gap-2 z-20 bg-black/40 p-2 rounded-lg backdrop-blur-sm border border-white/20">
-                    <button onClick={handleZoomIn} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><ZoomIn size={16} /></button>
-                    <button onClick={handleResetZoom} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><Maximize size={16} /></button>
-                    <button onClick={handleZoomOut} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><ZoomOut size={16} /></button>
-                </div>
+                <div className="absolute right-2 top-2 sm:right-4 sm:top-4 flex flex-col gap-2 z-20 bg-black/40 p-2 rounded-lg backdrop-blur-sm border border-white/20">
+                    <button onClick={handleZoomIn} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><ZoomIn size={16} /></button>
+                    <button onClick={handleResetZoom} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><Maximize size={16} /></button>
+                    <button onClick={handleZoomOut} className="bg-white/90 p-1.5 rounded shadow active:scale-95"><ZoomOut size={16} /></button>
+                </div>
 
-                {activeAlarm && (
-                    <div className="absolute inset-x-4 top-2 bg-red-600 text-white text-center p-1 text-xs font-bold animate-pulse shadow-lg border-2 border-yellow-400 z-10">
-                        {alarmMsg}
-                    </div>
-                )}
-            </div>
-        </div>
+                {activeAlarm && (
+                    <div className="absolute inset-x-4 top-2 bg-red-600 text-white text-center p-1 text-xs font-bold animate-pulse shadow-lg border-2 border-yellow-400 z-10">
+                        {alarmMsg}
+                    </div>
+                )}
+            </div>
+        </div>
 
-        {/* 控制区域：手机上垂直排列，电脑上水平网格 */}
-        <div className="h-auto bg-[#4b5563] rounded-xl p-4 flex items-center justify-center relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] shrink-0">
-            <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-12">
-                
-                {/* 左摇杆 */}
-                <div className="flex flex-col items-center transform scale-90 sm:scale-100">
-                    <div className="relative w-32 h-32 sm:w-40 sm:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingDw}</span>
-                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingUp}</span>
-                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCcw}</span>
-                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCw}</span>
+        {/* Controls Area */}
+        <div className="bg-[#4b5563] rounded-xl p-4 flex items-center justify-center relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] shrink-0">
+            <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-12">
+                
+                {/* Left Joystick */}
+                <div className="flex flex-col items-center transform scale-90 sm:scale-100">
+                    <div className="relative w-32 h-32 sm:w-40 sm:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingDw}</span>
+                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.luffingUp}</span>
+                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCcw}</span>
+                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.slewingCw}</span>
 
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
-                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
-                        </div>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
+                        </div>
 
-                        <button {...btnProps('LUFF_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
-                        <button {...btnProps('LUFF_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
-                        <button {...btnProps('SLEW_CCW')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
-                        <button {...btnProps('SLEW_CW')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
-                    </div>
-                </div>
+                        <button {...btnProps('LUFF_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
+                        <button {...btnProps('LUFF_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
+                        <button {...btnProps('SLEW_CCW')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
+                        <button {...btnProps('SLEW_CW')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
+                    </div>
+                </div>
 
-                {/* 中间按钮组 */}
-                <div className="flex flex-col items-center justify-center gap-4 order-last sm:order-none">
-                    <div className="flex gap-4 mb-2">
-                        {[1,2,3].map(i => (
-                            <div key={i} className="w-10 h-10 rounded-full bg-gray-700 border-2 border-gray-500 shadow flex items-center justify-center">
-                                <div className="w-1 h-5 bg-white rounded transform rotate-45"></div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded flex items-center justify-center shadow-lg border border-gray-500">
-                        <div className="w-12 h-12 bg-gradient-to-br from-gray-300 to-white rounded-full border border-gray-300 shadow-inner"></div>
-                    </div>
-                    <div className="flex gap-2 w-full mt-2">
-                         <button 
-                            onClick={() => setViewMode('TOP')}
-                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'TOP' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
-                        >
-                            {t.top}
-                        </button>
-                         <button 
-                            onClick={() => setViewMode('SIDE')}
-                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'SIDE' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
-                        >
-                            {t.side}
-                        </button>
-                    </div>
-                </div>
+                {/* Center Buttons */}
+                <div className="flex flex-col items-center justify-center gap-4 order-last sm:order-none">
+                    <div className="flex gap-4 mb-2">
+                        {[1,2,3].map(i => (
+                            <div key={i} className="w-10 h-10 rounded-full bg-gray-700 border-2 border-gray-500 shadow flex items-center justify-center">
+                                <div className="w-1 h-5 bg-white rounded transform rotate-45"></div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded flex items-center justify-center shadow-lg border border-gray-500">
+                        <div className="w-12 h-12 bg-gradient-to-br from-gray-300 to-white rounded-full border border-gray-300 shadow-inner"></div>
+                    </div>
+                    <div className="flex gap-2 w-full mt-2">
+                         <button 
+                            onClick={() => setViewMode('TOP')}
+                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'TOP' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
+                        >
+                            {t.top}
+                        </button>
+                         <button 
+                            onClick={() => setViewMode('SIDE')}
+                            className={`flex-1 text-[10px] font-bold py-2 rounded border-b-4 active:border-0 active:mt-1 ${viewMode === 'SIDE' ? 'bg-cyan-500 text-white border-cyan-700' : 'bg-gray-600 text-gray-200 border-gray-800'}`}
+                        >
+                            {t.side}
+                        </button>
+                    </div>
+                </div>
 
-                {/* 右摇杆 */}
-                <div className="flex flex-col items-center transform scale-90 sm:scale-100">
-                    <div className="relative w-32 h-32 sm:w-40 sm:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
-                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingDw}</span>
-                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingUp}</span>
-                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleIn}</span>
-                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleOut}</span>
+                {/* Right Joystick */}
+                <div className="flex flex-col items-center transform scale-90 sm:scale-100">
+                    <div className="relative w-32 h-32 sm:w-40 sm:h-40 bg-[#1f2937] rounded-full border-4 border-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                        <span className="absolute top-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingDw}</span>
+                        <span className="absolute bottom-4 text-[9px] text-gray-400 font-bold uppercase pointer-events-none">{t.hoistingUp}</span>
+                        <span className="absolute left-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleIn}</span>
+                        <span className="absolute right-0 text-[9px] text-gray-400 font-bold uppercase w-12 text-center leading-3 whitespace-pre-line pointer-events-none">{t.knuckleOut}</span>
 
-                         <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
-                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
-                        </div>
+                         <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-gray-600 to-gray-800 rounded-full shadow-[0_5px_10px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] flex items-center justify-center relative z-10 pointer-events-none">
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-tr from-red-900 to-red-600 rounded-full border-2 border-red-400 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
+                        </div>
 
-                        <button {...btnProps('HOIST_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
-                        <button {...btnProps('HOIST_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
-                        <button {...btnProps('KNUCKLE_IN')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
-                        <button {...btnProps('KNUCKLE_OUT')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    );
+                        <button {...btnProps('HOIST_DOWN')} className="absolute top-0 w-full h-1/3 z-20 active:bg-white/10 rounded-t-full" />
+                        <button {...btnProps('HOIST_UP')} className="absolute bottom-0 w-full h-1/3 z-20 active:bg-white/10 rounded-b-full" />
+                        <button {...btnProps('KNUCKLE_IN')} className="absolute left-0 w-1/3 h-full z-20 active:bg-white/10 rounded-l-full" />
+                        <button {...btnProps('KNUCKLE_OUT')} className="absolute right-0 w-1/3 h-full z-20 active:bg-white/10 rounded-r-full" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    );
 }
 
 function ParameterView({ data, params, saveParameter, setCurrentView, language }: any) {
@@ -1086,24 +1008,25 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
     const [localParams, setLocalParams] = useState(params);
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
 
+    // FIX: Using h-full overflow-y-auto to allow scrolling on small screens
     if (subView === 'detail') {
         return (
-            <div className="flex flex-col h-full bg-[#2a2a2a] p-10 items-center animate-in fade-in">
-                 <div className="w-full max-w-3xl bg-[#333] border border-gray-600 rounded-lg overflow-hidden shadow-2xl">
+            <div className="flex flex-col h-full bg-[#2a2a2a] p-4 sm:p-10 items-center animate-in fade-in overflow-y-auto">
+                 <div className="w-full max-w-3xl bg-[#333] border border-gray-600 rounded-lg shadow-2xl shrink-0 my-auto">
                      <div className="bg-[#87CEEB] p-4 text-center border-b border-gray-500">
                          <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wider">{selectedParam}</h2>
                      </div>
                      
-                     <div className="p-12 space-y-8 bg-[#333]">
-                          <div className="flex items-center justify-center gap-6">
-                              <label className="text-white font-bold w-48 text-right">{t.liftingWeight}:</label>
+                     <div className="p-6 sm:p-12 space-y-6 bg-[#333]">
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+                              <label className="text-white font-bold w-full sm:w-48 text-center sm:text-right">{t.liftingWeight}:</label>
                               <div className="bg-white text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-gray-400">{data.liftingWeight.toFixed(1)} T</div>
                           </div>
 
                           <div className="h-px bg-gray-600 w-3/4 mx-auto"></div>
 
-                          <div className="flex items-center justify-center gap-6">
-                              <label className="text-white font-bold w-48 text-right">{t.liftingWeightLimit}:</label>
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+                              <label className="text-white font-bold w-full sm:w-48 text-center sm:text-right">{t.liftingWeightLimit}:</label>
                               <input 
                                 type="number" 
                                 className="bg-yellow-400 text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1113,8 +1036,8 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
                               <span className="text-gray-400 font-bold">T</span>
                           </div>
 
-                          <div className="flex items-center justify-center gap-6">
-                              <label className="text-white font-bold w-48 text-right">{t.warning90}:</label>
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+                              <label className="text-white font-bold w-full sm:w-48 text-center sm:text-right">{t.warning90}:</label>
                               <input 
                                 type="number" 
                                 className="bg-yellow-400 text-black font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-yellow-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1124,11 +1047,11 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
                               <span className="text-gray-400 font-bold">T</span>
                           </div>
 
-                          <div className="flex items-center justify-center gap-6">
-                              <label className="text-white font-bold w-48 text-right">{t.alarm110}:</label>
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+                              <label className="text-white font-bold w-full sm:w-48 text-center sm:text-right">{t.alarm110}:</label>
                               <input 
                                 type="number" 
-                                className="bg-red-600 text-white font-bold px-4 py-2 w-32 text-center border-2 border-red-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="bg-red-600 text-white font-bold px-4 py-2 w-full max-w-xs sm:w-32 text-center border-2 border-red-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={localParams.alarm110}
                                 onChange={(e) => setLocalParams({...localParams, alarm110: parseFloat(e.target.value)})}
                               />
@@ -1150,12 +1073,12 @@ function ParameterView({ data, params, saveParameter, setCurrentView, language }
     }
 
     return (
-      <div className="h-full flex flex-col p-10 items-center justify-center bg-[#f0f9ff]">
-         <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl border border-blue-200 overflow-hidden">
+      <div className="h-full flex flex-col p-4 sm:p-10 items-center justify-center bg-[#f0f9ff] overflow-y-auto">
+         <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl border border-blue-200 overflow-hidden shrink-0 my-auto">
              <div className="bg-[#87CEEB] p-4 text-center border-b border-blue-300">
                 <h3 className="text-xl text-slate-800 font-bold uppercase tracking-wider">{t.paramSelector}</h3>
              </div>
-             <div className="p-10 grid grid-cols-1 sm:grid-cols-2 gap-8">
+             <div className="p-4 sm:p-10 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                 {[t.liftingWeight, t.speed, t.workAngle, t.statAlarm, t.hoist, t.knuckle, t.slew, t.luffing].map((item, idx) => (
                     <button 
                         key={idx}
@@ -1206,13 +1129,14 @@ function RecordView({ type, setCurrentView, saveRecord, language, records }: any
     const filteredRecords = records ? records.filter((r: MaintenanceEntry) => r.type === type) : [];
 
     return (
-        <div className="h-full bg-gray-100 p-6 flex flex-col gap-4">
-             <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+        // FIX: overflow-y-auto allows list to scroll in landscape
+        <div className="h-full bg-gray-100 p-2 sm:p-6 flex flex-col gap-4 overflow-y-auto">
+             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-sm gap-2 shrink-0">
                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                      <span className="w-2 h-8 bg-blue-600 rounded-full"></span>
                      {type === 'Maintenance' ? t.maintenanceRecord : t.repairRecord}
                  </h2>
-                 <div className="flex gap-2">
+                 <div className="flex gap-2 flex-wrap justify-center">
                      <button 
                         onClick={() => setView('list')} 
                         className={`px-4 py-2 rounded font-bold ${view === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}
@@ -1230,28 +1154,28 @@ function RecordView({ type, setCurrentView, saveRecord, language, records }: any
              </div>
 
              {view === 'list' ? (
-                 <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col">
+                 <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                      <div className="overflow-auto flex-1">
                          <table className="w-full text-left">
                              <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-xs border-b border-gray-200 sticky top-0">
                                  <tr>
-                                     <th className="p-4">{t.date}</th>
-                                     <th className="p-4">{t.time}</th>
-                                     <th className="p-4">{t.parts}</th>
-                                     <th className="p-4">{t.partName}</th>
-                                     <th className="p-4">{t.jobContent}</th>
-                                     <th className="p-4">Employee</th>
+                                     <th className="p-4 whitespace-nowrap">{t.date}</th>
+                                     <th className="p-4 whitespace-nowrap">{t.time}</th>
+                                     <th className="p-4 whitespace-nowrap">{t.parts}</th>
+                                     <th className="p-4 whitespace-nowrap">{t.partName}</th>
+                                     <th className="p-4 min-w-[200px]">{t.jobContent}</th>
+                                     <th className="p-4 whitespace-nowrap">Employee</th>
                                  </tr>
                              </thead>
                              <tbody className="divide-y divide-gray-100">
                                  {filteredRecords.map((rec: MaintenanceEntry) => (
                                      <tr key={rec.id} className="hover:bg-blue-50 transition-colors">
-                                         <td className="p-4 font-mono text-sm text-gray-500">{rec.date}</td>
-                                         <td className="p-4 font-mono text-sm text-gray-500">{rec.time}</td>
-                                         <td className="p-4 font-bold text-slate-700">{rec.component}</td>
-                                         <td className="p-4 text-slate-600">{rec.partName}</td>
+                                         <td className="p-4 font-mono text-sm text-gray-500 whitespace-nowrap">{rec.date}</td>
+                                         <td className="p-4 font-mono text-sm text-gray-500 whitespace-nowrap">{rec.time}</td>
+                                         <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{rec.component}</td>
+                                         <td className="p-4 text-slate-600 whitespace-nowrap">{rec.partName}</td>
                                          <td className="p-4 text-slate-600">{rec.description}</td>
-                                         <td className="p-4 text-slate-600">{rec.employee}</td>
+                                         <td className="p-4 text-slate-600 whitespace-nowrap">{rec.employee}</td>
                                      </tr>
                                  ))}
                                  {filteredRecords.length === 0 && (
@@ -1260,16 +1184,16 @@ function RecordView({ type, setCurrentView, saveRecord, language, records }: any
                              </tbody>
                          </table>
                      </div>
-                     <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+                     <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
                          <button className="flex items-center gap-2 text-blue-600 font-bold hover:bg-blue-100 px-4 py-2 rounded">
                              <Download size={18}/> {t.exportOrder}
                          </button>
                      </div>
                  </div>
              ) : (
-                 <div className="flex-1 bg-white rounded-lg shadow-sm p-8 flex justify-center overflow-auto">
-                     <div className="w-full max-w-2xl space-y-6">
-                         <div className="grid grid-cols-2 gap-6">
+                 <div className="flex-1 bg-white rounded-lg shadow-sm p-4 sm:p-8 flex justify-center overflow-auto min-h-0">
+                     <div className="w-full max-w-2xl space-y-6 pb-4">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                              <div className="space-y-2">
                                  <label className="font-bold text-gray-700">{t.parts}</label>
                                  <input 
@@ -1327,47 +1251,35 @@ function ToDoView({ data, setCurrentView, language }: any) {
     const [zoom, setZoom] = useState(1);
     const [selectedTask, setSelectedTask] = useState(1);
     
-    // Hardcoded tasks for demo
     const tasks = [
         { id: 1, title: 'Check Main Hoist Wire Rope', status: 'Pending', priority: 'High', date: '2025-11-12' },
         { id: 2, title: 'Inspect Hydraulic Pump Pressure', status: 'Pending', priority: 'Medium', date: '2025-11-13' },
         { id: 3, title: 'Lubricate Knuckle Joint', status: 'Pending', priority: 'Low', date: '2025-11-14' },
     ];
 
-    // =========================================================================
-    // 💡 1. 复制并定义反向线性映射函数：将 [-70, 43] 反向映射到 [150, 30]
-    //    确保显示值与 RemoteControlView/DashboardView 同步。
-    // =========================================================================
-    const mapKnuckleAngle = (knuckleAngle) => {
-        const inMin = -70;   // 原始数据的最小值 (对应显示 150°)
-        const inMax = 43;    // 原始数据的最大值 (对应显示 30°)
-        const outMin = 150;  // 目标显示值 (当原始值为 inMin 时)
-        const outMax = 30;   // 目标显示值 (当原始值为 inMax 时)
-
-        const inputRange = inMax - inMin; // 113
-        const outputRange = outMax - outMin; // -120
-        
+    const mapKnuckleAngle = (knuckleAngle: number) => {
+        const inMin = -70;   
+        const inMax = 43;    
+        const outMin = 150;  
+        const outMax = 30;   
+        const inputRange = inMax - inMin; 
+        const outputRange = outMax - outMin; 
         if (inputRange === 0) return outMin;
-
-        // 线性映射公式
         const mappedAngle = outMin + outputRange * (knuckleAngle - inMin) / inputRange;
-
-        // 限制结果在 [30, 150] 范围内
         return Math.min(Math.max(mappedAngle, outMax), outMin); 
     };
 
-    // 💡 2. 计算要显示给 CraneVisual 的折臂角度
     const displayKnuckleAngle = mapKnuckleAngle(data.knuckleAngle);
     
-    // --- Zoom handlers (保持不变) ---
     const handleZoomIn = () => setZoom(prev => Math.min(2, prev + 0.1));
     const handleZoomOut = () => setZoom(prev => Math.max(0.5, prev - 0.1));
     const handleResetZoom = () => setZoom(1);
 
     return (
-        <div className="h-full bg-gray-100 p-6 flex gap-6">
+        // FIX: flex-col on mobile, overflow-y-auto
+        <div className="h-full bg-gray-100 p-2 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 overflow-y-auto">
             {/* Left List */}
-            <div className="w-80 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden border border-gray-200">
+            <div className="w-full md:w-80 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden border border-gray-200 shrink-0 h-[300px] md:h-auto">
                 <div className="p-4 border-b border-gray-200 bg-emerald-50 flex justify-between items-center">
                     <h3 className="font-bold text-emerald-800">{t.statTodo}</h3>
                     <div className="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">3</div>
@@ -1401,7 +1313,7 @@ function ToDoView({ data, setCurrentView, language }: any) {
             </div>
 
             {/* Right Visual */}
-            <div className="flex-1 bg-white rounded-lg shadow-sm p-1 flex flex-col border border-gray-200 relative">
+            <div className="flex-1 bg-white rounded-lg shadow-sm p-1 flex flex-col border border-gray-200 relative min-h-[300px]">
                 <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-3 py-2 rounded shadow border border-gray-200">
                      <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Visual Inspection</div>
                      <div className="font-bold text-emerald-700">{tasks.find(t => t.id === selectedTask)?.title}</div>
@@ -1412,16 +1324,14 @@ function ToDoView({ data, setCurrentView, language }: any) {
                         angle={data.mainAngle} 
                         ropeLength={data.ropeLength} 
                         activeAlarm={false} 
-                        knuckleAngle={data.knuckleAngle} // 动画使用原始值
+                        knuckleAngle={data.knuckleAngle} 
                         slewAngle={data.slewAngle}
                         viewMode="SIDE"
                         weight={2.1}
                         zoom={zoom}
-                        // 💡 3. 将映射后的角度传递给 CraneVisual 用于显示
                         displayKnuckleAngle={displayKnuckleAngle} 
                     />
                     
-                    {/* Zoom Controls */}
                     <div className="absolute right-4 bottom-4 flex flex-col gap-2">
                         <div className="bg-white p-1 rounded-lg shadow-lg border border-gray-200 flex flex-col gap-1">
                             <button onClick={handleZoomIn} className="p-2 hover:bg-emerald-50 text-slate-700 rounded transition-colors" title="Zoom In"><ZoomIn size={20}/></button>
@@ -1441,8 +1351,9 @@ function ToDoView({ data, setCurrentView, language }: any) {
 function AlarmHistoryView({ alarmHistory, setCurrentView, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     return (
-        <div className="h-full bg-gray-100 p-6 flex flex-col gap-4">
-            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+        // FIX: overflow-y-auto allows list to scroll in landscape
+        <div className="h-full bg-gray-100 p-2 sm:p-6 flex flex-col gap-4 overflow-y-auto">
+            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm shrink-0">
                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                      <span className="w-2 h-8 bg-red-500 rounded-full"></span>
                      {t.alarmWindow}
@@ -1450,16 +1361,16 @@ function AlarmHistoryView({ alarmHistory, setCurrentView, language }: any) {
                  <button onClick={() => setCurrentView(ViewState.LANDING)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">{t.back}</button>
             </div>
             
-            <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col">
+            <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                  <div className="overflow-auto flex-1">
                      <table className="w-full text-left">
                          <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-xs border-b border-gray-200 sticky top-0">
                              <tr>
-                                 <th className="p-4">{t.time}</th>
-                                 <th className="p-4">{t.alarmCode}</th>
-                                 <th className="p-4">{t.text}</th>
-                                 <th className="p-4">Type</th>
-                                 <th className="p-4">Status</th>
+                                 <th className="p-4 whitespace-nowrap">{t.time}</th>
+                                 <th className="p-4 whitespace-nowrap">{t.alarmCode}</th>
+                                 <th className="p-4 min-w-[200px]">{t.text}</th>
+                                 <th className="p-4 whitespace-nowrap">Type</th>
+                                 <th className="p-4 whitespace-nowrap">Status</th>
                              </tr>
                          </thead>
                          <tbody className="divide-y divide-gray-100">
@@ -1467,15 +1378,15 @@ function AlarmHistoryView({ alarmHistory, setCurrentView, language }: any) {
                                  const msg = t.alarms[alarm.code as keyof typeof t.alarms] || alarm.message;
                                  return (
                                  <tr key={idx} className="hover:bg-red-50 transition-colors">
-                                     <td className="p-4 font-mono text-sm text-gray-500">{alarm.timestamp}</td>
-                                     <td className="p-4 font-bold text-slate-700 font-mono">{alarm.code}</td>
+                                     <td className="p-4 font-mono text-sm text-gray-500 whitespace-nowrap">{alarm.timestamp}</td>
+                                     <td className="p-4 font-bold text-slate-700 font-mono whitespace-nowrap">{alarm.code}</td>
                                      <td className="p-4 text-slate-600">{msg}</td>
-                                     <td className="p-4">
+                                     <td className="p-4 whitespace-nowrap">
                                          <span className={`px-2 py-1 rounded text-xs font-bold ${alarm.type === 'ALARM' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
                                              {alarm.type}
                                          </span>
                                      </td>
-                                     <td className="p-4 text-xs font-bold text-gray-400 uppercase">{alarm.active ? 'Active' : 'Resolved'}</td>
+                                     <td className="p-4 text-xs font-bold text-gray-400 uppercase whitespace-nowrap">{alarm.active ? 'Active' : 'Resolved'}</td>
                                  </tr>
                              )})}
                              {alarmHistory.length === 0 && (
@@ -1492,8 +1403,9 @@ function AlarmHistoryView({ alarmHistory, setCurrentView, language }: any) {
 function HelpView({ setCurrentView, language }: any) {
     const t = TRANSLATIONS[language as keyof typeof TRANSLATIONS];
     return (
-        <div className="h-full bg-gray-100 p-6 flex items-center justify-center">
-             <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+        // FIX: overflow-y-auto allows list to scroll in landscape
+        <div className="h-full bg-gray-100 p-6 flex items-center justify-center overflow-y-auto">
+             <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden shrink-0 my-auto">
                  <div className="bg-[#00509E] p-8 text-center text-white">
                      <HelpCircle size={64} className="mx-auto mb-4 opacity-80"/>
                      <h2 className="text-3xl font-bold">{t.help} & {t.onSiteService}</h2>
@@ -1536,7 +1448,8 @@ function SystemLayout({ children, title, currentView, setCurrentView, currentTim
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
-    <div className="flex flex-col h-screen md:min-h-screen bg-gray-900 overflow-hidden font-sans select-none relative">
+    // h-[100dvh] 适配手机视口高度，整体禁止外层滚动，由内部 main 控制
+    <div className="flex flex-col h-[100dvh] bg-gray-900 overflow-hidden font-sans select-none relative">
       <Header 
           onNavigateHome={() => setCurrentView(ViewState.LANDING)} 
           currentTime={currentTime} 
@@ -1548,19 +1461,24 @@ function SystemLayout({ children, title, currentView, setCurrentView, currentTim
       <div className="flex flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
         
         {/* 主内容区域 */}
-        <main className="flex-1 p-2 md:mr-[200px] relative flex flex-col h-full overflow-hidden w-full">
-            {/* 顶部标题栏 */}
+        <main className="flex-1 p-2 md:mr-[200px] relative flex flex-col h-full w-full">
+            {/* 顶部标题条 */}
             <div className="bg-gradient-to-r from-[#00A8E8]/80 to-transparent text-white px-3 py-2 mb-2 rounded border-l-4 border-white shadow-lg flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-2">
                      <div className="bg-white p-1 rounded text-[#00A8E8]"><LayoutGrid size={16}/></div>
-                     <h2 className="text-sm sm:text-lg font-bold uppercase truncate max-w-[150px] sm:max-w-none">{title}</h2>
+                     <h2 className="text-sm sm:text-lg font-bold uppercase truncate max-w-[150px] sm:max-w-none">
+                        {title}
+                     </h2>
                   </div>
                   
+                  {/* 设备型号选择器 */}
                   <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded border border-white/20">
-                    <span className="text-[10px] text-gray-300 uppercase font-bold tracking-wider hidden sm:inline">{t.equipmentList}</span>
+                    <span className="text-[10px] text-gray-300 uppercase font-bold tracking-wider hidden sm:inline">
+                        {t.equipmentList}
+                    </span>
                     <select 
                         className="bg-transparent text-[#00A8E8] font-bold outline-none text-xs sm:text-sm cursor-pointer [&>option]:bg-gray-800"
-                        onChange={(e) => setData((prev: any) => ({...prev, model: e.target.value}))}
+                        onChange={(e) => setData((prev: any) => ({ ...prev, model: e.target.value }))}
                         value={data.model}
                     >
                       <option value="5T MODEL">{t.crane5T}</option>
@@ -1569,63 +1487,75 @@ function SystemLayout({ children, title, currentView, setCurrentView, currentTim
                   </div>
             </div>
             
-            {/* 内容容器 */}
-            <div className="flex-1 relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900/90 shadow-2xl">
+            {/* 关键：主内容区域开启垂直滚动，解决远程监控视图在横屏下看不到上半部分的问题 */}
+            <div className="flex-1 relative overflow-hidden overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/90 shadow-2xl">
                 {children}
             </div>
         </main>
 
-        {/* 侧边栏：手机端为抽屉式，电脑端固定 */}
-        <aside className={`
-            fixed inset-y-0 right-0 z-50 w-64 bg-[#1e293b] border-l border-gray-600 p-2 shadow-2xl transition-transform duration-300 transform
+        {/* 右侧侧边栏：桌面固定 + 手机抽屉 */}
+        <aside
+          className={`
+            fixed inset-y-0 right-0 z-50 w-64 bg-[#1e293b] border-l border-gray-600 p-2 shadow-2xl
+            transition-transform duration-300 transform
             ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}
-            md:translate-x-0 md:w-[200px] md:absolute md:top-0 md:bottom-0 md:flex md:flex-col md:justify-between
-        `}>
-            {/* 手机端菜单关闭按钮 */}
+            /* 关键修改：所有屏幕下都 flex 布局，让内部 flex-1 + overflow-y-auto 生效 */
+            flex flex-col justify-between
+            md:translate-x-0 md:w-[200px] md:absolute md:top-0 md:bottom-0
+          `}
+        >
+            {/* 手机端顶部标题 + 关闭按钮 */}
             <div className="flex justify-between items-center md:hidden mb-4 px-2 pt-2 border-b border-gray-700 pb-2">
                 <span className="text-white font-bold text-lg">Menu</span>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-white bg-gray-800 p-1 rounded"><X size={20} /></button>
+                <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="text-gray-400 hover:text-white bg-gray-800 p-1 rounded"
+                >
+                    <X size={20} />
+                </button>
             </div>
 
+            {/* 菜单列表：overflow-y-auto + flex-1，配合外层 flex-col，横屏可上下滑动 */}
             <div className="space-y-1 mt-2 overflow-y-auto flex-1">
                 <SideButton 
-                label={t.remoteControl} 
-                icon={Power} 
-                active={currentView === ViewState.REMOTE_CONTROL} 
-                onClick={() => { setCurrentView(ViewState.REMOTE_CONTROL); setIsMobileMenuOpen(false); }} 
+                  label={t.remoteControl} 
+                  icon={Power} 
+                  active={currentView === ViewState.REMOTE_CONTROL} 
+                  onClick={() => { setCurrentView(ViewState.REMOTE_CONTROL); setIsMobileMenuOpen(false); }} 
                 />
                 <SideButton 
-                label={t.parameterSetting} 
-                icon={Settings} 
-                active={currentView === ViewState.PARAMETER_SETTING} 
-                onClick={() => { setCurrentView(ViewState.PARAMETER_SETTING); setIsMobileMenuOpen(false); }} 
+                  label={t.parameterSetting} 
+                  icon={Settings} 
+                  active={currentView === ViewState.PARAMETER_SETTING} 
+                  onClick={() => { setCurrentView(ViewState.PARAMETER_SETTING); setIsMobileMenuOpen(false); }} 
                 />
                 <SideButton 
-                label={t.maintenanceRecord} 
-                icon={ClipboardList} 
-                active={currentView === ViewState.MAINTENANCE_RECORD} 
-                onClick={() => { setCurrentView(ViewState.MAINTENANCE_RECORD); setIsMobileMenuOpen(false); }} 
+                  label={t.maintenanceRecord} 
+                  icon={ClipboardList} 
+                  active={currentView === ViewState.MAINTENANCE_RECORD} 
+                  onClick={() => { setCurrentView(ViewState.MAINTENANCE_RECORD); setIsMobileMenuOpen(false); }} 
                 />
                 <SideButton 
-                label={t.repairRecord} 
-                icon={Wrench} 
-                active={currentView === ViewState.REPAIR_RECORD} 
-                onClick={() => { setCurrentView(ViewState.REPAIR_RECORD); setIsMobileMenuOpen(false); }} 
-                />
-                 <SideButton 
-                label={t.statAlarm} 
-                icon={AlertCircle} 
-                active={currentView === ViewState.ALARM_HISTORY} 
-                onClick={() => { setCurrentView(ViewState.ALARM_HISTORY); setIsMobileMenuOpen(false); }} 
+                  label={t.repairRecord} 
+                  icon={Wrench} 
+                  active={currentView === ViewState.REPAIR_RECORD} 
+                  onClick={() => { setCurrentView(ViewState.REPAIR_RECORD); setIsMobileMenuOpen(false); }} 
                 />
                 <SideButton 
-                label={t.statTodo} 
-                icon={CheckSquare} 
-                active={currentView === ViewState.TODO_LIST} 
-                onClick={() => { setCurrentView(ViewState.TODO_LIST); setIsMobileMenuOpen(false); }} 
+                  label={t.statAlarm} 
+                  icon={AlertCircle} 
+                  active={currentView === ViewState.ALARM_HISTORY} 
+                  onClick={() => { setCurrentView(ViewState.ALARM_HISTORY); setIsMobileMenuOpen(false); }} 
+                />
+                <SideButton 
+                  label={t.statTodo} 
+                  icon={CheckSquare} 
+                  active={currentView === ViewState.TODO_LIST} 
+                  onClick={() => { setCurrentView(ViewState.TODO_LIST); setIsMobileMenuOpen(false); }} 
                 />
             </div>
             
+            {/* 底部 Help 按钮 */}
             <div className="mb-2 mt-auto">
                  <SideButton 
                     label={t.help} 
@@ -1633,23 +1563,26 @@ function SystemLayout({ children, title, currentView, setCurrentView, currentTim
                     active={currentView === ViewState.HELP} 
                     onClick={() => { setCurrentView(ViewState.HELP); setIsMobileMenuOpen(false); }} 
                     colorClass="from-slate-700 to-slate-800"
-                />
+                 />
             </div>
         </aside>
 
-        {/* 手机端遮罩层 */}
+        {/* 手机端菜单遮罩层 */}
         {isMobileMenuOpen && (
-            <div className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+            <div
+                className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+                onClick={() => setIsMobileMenuOpen(false)}
+            ></div>
         )}
       </div>
     </div>
   );
 }
 
+
 // --- Main App Component ---
 
 export default function App() {
-  // --- Global State ---
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.LANDING);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleString('en-GB', DATE_OPTIONS));
   const [activeAlarm, setActiveAlarm] = useState<Alarm | null>(null);
@@ -1664,7 +1597,7 @@ export default function App() {
     oilTemp: 45.0,
     windSpeed: 12.5,
     liftingWeight: 2.06,
-    speed: 0.0, // Initialize speed at 0
+    speed: 0.0,
     mainAngle: 27.2,
     ropeLength: 2.8,
     workRadius: 9.6,
@@ -1674,7 +1607,6 @@ export default function App() {
     knuckleAngle: 45
   });
 
-  // Parameters State
   const [params, setParams] = useState<SystemParameters>({
       liftingWeightLimit: 5.1,
       warning90: 4.5,
@@ -1685,7 +1617,7 @@ export default function App() {
       setActiveAlarm(null);
   }, []);
 
-  // --- Loop for Continuous Control with Speed Logic ---
+  // --- Loop for Continuous Control ---
   useEffect(() => {
       let interval: number;
       if (activeControl) {
@@ -1704,9 +1636,8 @@ export default function App() {
                           speedVal = 15.0;
                           break;
                       case 'LUFF_UP': 
-                          // Updated limit to 50 per user request
                           newData.mainAngle = Math.min(50, prev.mainAngle + 0.5); 
-                          speedVal = 0.5; // deg/s
+                          speedVal = 0.5; 
                           break;
                       case 'LUFF_DOWN': 
                           newData.mainAngle = Math.max(0, prev.mainAngle - 0.5); 
@@ -1714,19 +1645,17 @@ export default function App() {
                           break;
                       case 'SLEW_CW': 
                           newData.slewAngle = (prev.slewAngle + 1) % 360; 
-                          speedVal = 1.0; // deg/s
+                          speedVal = 1.0; 
                           break;
                       case 'SLEW_CCW': 
                           newData.slewAngle = (prev.slewAngle - 1 + 360) % 360; 
                           speedVal = 1.0;
                           break;
                       case 'KNUCKLE_IN': 
-                          // Updated limit to 122 as per user request (Min 50, Max 122)
                           newData.knuckleAngle = Math.min(43, prev.knuckleAngle + 1); 
                           speedVal = 0.8;
                           break;
                       case 'KNUCKLE_OUT': 
-                          // Updated limit to 20 as per user request (Min 20, Max 122)
                           newData.knuckleAngle = Math.max(-70, prev.knuckleAngle - 1); 
                           speedVal = 0.8;
                           break;
@@ -1755,10 +1684,8 @@ export default function App() {
       const now = new Date();
       setCurrentTime(now.toLocaleString('en-GB', DATE_OPTIONS));
       
-      // Physics Simulation
       setData(prev => {
           let newTemp = prev.oilTemp + (Math.random() - 0.5) * 0.5;
-          // Clamp temp
           if (newTemp > 95) newTemp = 95;
           if (newTemp < 40) newTemp = 40;
 
@@ -1773,12 +1700,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Check Alarms based on Data
   useEffect(() => {
       if (data.liftingWeight > params.alarm110) {
           triggerAlarm({
               code: 'OVLD 004',
-              message: 'Lifting Weight to 110% Lifting Overload.', // Static for fallback, visual update handles logic
+              message: 'Lifting Weight to 110% Lifting Overload.',
               type: 'ALARM',
               timestamp: new Date().toLocaleString(),
               active: true
@@ -1802,10 +1728,6 @@ export default function App() {
       });
   }, []);
 
-  const handleControl = (action: string) => {
-      setActiveControl(action);
-  };
-
   const saveParameter = useCallback((newParams: SystemParameters) => {
       setParams(newParams);
       alert("Parameters Saved Successfully!");
@@ -1818,7 +1740,6 @@ export default function App() {
   }, []);
 
 
-  // --- Main Render Switch ---
   if (currentView === ViewState.LANDING) {
       return (
           <LandingView 
